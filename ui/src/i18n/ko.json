@@ -65,6 +65,22 @@
     "comfyExportFailed": "ComfyUI로 이미지를 업로드하지 못했습니다.",
     "cancelFailed": "생성을 취소하지 못했습니다."
   },
+  "designSystem": {
+    "settingsTitle": "프로젝트 디자인 시스템",
+    "settingsBody": "이 프로젝트 생성 결과에 하나의 DESIGN.md를 일관되게 적용합니다. 노드별로 끌 수 있습니다.",
+    "noneActive": "활성 디자인 시스템 없음",
+    "clearActive": "프로젝트에서 사용 안 함",
+    "slugPlaceholder": "선택: 슬러그",
+    "bodyPlaceholder": "DESIGN.md 내용을 붙여넣기",
+    "importMarkdown": "DESIGN.md 가져오기",
+    "importLibrary": "프리셋 가져오기",
+    "libraryUnavailable": "open-design 프리셋을 찾지 못했습니다",
+    "preview": "미리보기",
+    "imported": "디자인 시스템을 가져왔습니다",
+    "importFailed": "디자인 시스템을 가져오지 못했습니다",
+    "activateFailed": "활성 디자인 시스템을 설정하지 못했습니다",
+    "deleteFailed": "디자인 시스템을 삭제하지 못했습니다"
+  },
   "inflight": {
     "queued": "대기 중",
     "streaming": "생성 중",
@@ -462,6 +478,9 @@
     "generate": "생성",
     "generateTitle": "노드 이미지 생성",
     "enhancePromptTitle": "프롬프트를 짧게 구체화",
+    "designSystemToggle": "디자인 시스템",
+    "designSystemOnTitle": "이 노드에 활성 프로젝트 디자인 시스템 사용",
+    "designSystemOffTitle": "이 노드에는 활성 프로젝트 디자인 시스템을 사용하지 않음",
     "addChild": "자식",
     "addChildTitle": "자식 노드 추가",
     "duplicateBranch": "복제",

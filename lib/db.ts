@@ -32,9 +32,29 @@ function migrate(database: Database.Database) {
     CREATE TABLE IF NOT EXISTS projects (
       id          TEXT PRIMARY KEY,
       title       TEXT NOT NULL DEFAULT 'Untitled Project',
+      active_design_system_id TEXT,
       created_at  INTEGER NOT NULL,
       updated_at  INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS project_design_systems (
+      id          TEXT PRIMARY KEY,
+      project_id  TEXT NOT NULL,
+      slug        TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      category    TEXT NOT NULL DEFAULT 'Uncategorized',
+      summary     TEXT NOT NULL DEFAULT '',
+      swatches    TEXT NOT NULL DEFAULT '[]',
+      body        TEXT NOT NULL,
+      source      TEXT NOT NULL DEFAULT 'custom',
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL,
+      UNIQUE(project_id, slug),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_project_design_systems_project
+      ON project_design_systems(project_id, updated_at);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id          TEXT PRIMARY KEY,
@@ -193,6 +213,14 @@ function migrate(database: Database.Database) {
     database
       .prepare("INSERT INTO projects (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)")
       .run("p_default", "Default Project", t, t);
+  }
+
+  const projectColumns = (database
+    .prepare("PRAGMA table_info(projects)")
+    .all() as Array<{ name: string }>)
+    .map((row) => row.name);
+  if (!projectColumns.includes("active_design_system_id")) {
+    database.exec("ALTER TABLE projects ADD COLUMN active_design_system_id TEXT");
   }
 
   const sessionColumns = (database

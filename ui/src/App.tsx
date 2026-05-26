@@ -49,6 +49,8 @@ export default function App() {
   const hydrateHistory = useAppStore((s) => s.hydrateHistory);
   const loadProjects = useAppStore((s) => s.loadProjects);
   const loadSessions = useAppStore((s) => s.loadSessions);
+  const loadProjectDesignSystems = useAppStore((s) => s.loadProjectDesignSystems);
+  const loadDesignSystemLibrary = useAppStore((s) => s.loadDesignSystemLibrary);
   const startInFlightPolling = useAppStore((s) => s.startInFlightPolling);
   const reconcileInflight = useAppStore((s) => s.reconcileInflight);
   const syncFromStorage = useAppStore((s) => s.syncFromStorage);
@@ -89,9 +91,14 @@ export default function App() {
     if (!activeProjectId) return;
     reconcileInflight();
     startInFlightPolling();
+    loadProjectDesignSystems();
     loadSessions();
     hydrateHistory();
-  }, [activeProjectId, hydrateHistory, loadSessions, reconcileInflight, startInFlightPolling]);
+  }, [activeProjectId, hydrateHistory, loadProjectDesignSystems, loadSessions, reconcileInflight, startInFlightPolling]);
+
+  useEffect(() => {
+    loadDesignSystemLibrary();
+  }, [loadDesignSystemLibrary]);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {

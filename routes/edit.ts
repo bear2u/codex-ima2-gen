@@ -16,6 +16,7 @@ import { logEvent, logError } from "../lib/logger.js";
 import { hasPngAlphaChannel, parsePngInfo } from "../lib/pngInfo.js";
 import { invalidateHistoryIndex } from "../lib/historyIndex.js";
 import { requireProject } from "../lib/projectStore.js";
+import { applyProjectDesignSystem } from "../lib/designSystemPrompt.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -152,6 +153,8 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         finishErrorCode = "INVALID_EDIT_INPUT";
         return res.status(400).json({ error: "Prompt and image are required" });
       }
+      const designSystem = applyProjectDesignSystem(projectId, String(prompt));
+      const promptForGeneration = designSystem.prompt;
       const maskCheck: any = validateEditMask(imageB64, rawMask);
       if (maskCheck.error) {
         finishStatus = "error";
@@ -187,7 +190,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       const startTime = Date.now();
       const { b64: resultB64, usage, revisedPrompt, webSearchCalls = 0 } = await editViaResponses(
         activeProvider,
-        prompt,
+        promptForGeneration,
         imageB64,
         quality,
         effectiveSize,
@@ -211,7 +214,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       const filename = `${Date.now()}_${randomBytes(ctx.config.ids.generatedHexBytes).toString("hex")}.png`;
       await writeFile(join(ctx.config.storage.generatedDir, filename), Buffer.from(resultB64, "base64"));
       const meta = {
-        prompt,
+        prompt: promptForGeneration,
         userPrompt: prompt,
         revisedPrompt: revisedPrompt || null,
         promptMode: normalizedPromptMode,
@@ -228,6 +231,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         usage: usage || null,
         webSearchCalls,
         webSearchEnabled,
+        ...designSystem.meta,
       };
       await writeFile(join(ctx.config.storage.generatedDir, filename + ".json"), JSON.stringify(meta)).catch(() => {});
       invalidateHistoryIndex();

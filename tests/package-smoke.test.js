@@ -31,6 +31,8 @@ const REQUIRED_SOURCE_PACK_FILES = [
   "assets/card-news/templates/clean-report-square/template.json",
   "assets/card-news/templates/clean-report-square/base.png",
   "assets/card-news/templates/clean-report-square/preview.png",
+  "open-design/design-systems/default/DESIGN.md",
+  "open-design/design-systems/linear-app/DESIGN.md",
 ];
 
 const REQUIRED_BUILD_PACK_FILES = [

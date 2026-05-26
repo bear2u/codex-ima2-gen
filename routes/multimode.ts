@@ -21,6 +21,7 @@ import {
   normalizeComposerPrompt,
 } from "../lib/composerSnapshot.js";
 import { requireProject } from "../lib/projectStore.js";
+import { applyProjectDesignSystem } from "../lib/designSystemPrompt.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -144,6 +145,8 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
         sendSse(res, "error", { error: "Prompt is required", code: finishErrorCode, status: 400, requestId });
         return;
       }
+      const designSystem = applyProjectDesignSystem(projectId, String(prompt));
+      const promptForGeneration = designSystem.prompt;
       const moderationCheck = validateModeration(ctx, moderation);
       if (moderationCheck.error) {
         finishStatus = "error";
@@ -237,7 +240,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
           stageLabel: String.fromCharCode(65 + index),
           requestId,
           projectId,
-          prompt,
+          prompt: promptForGeneration,
           userPrompt: prompt,
           revisedPrompt: image.revisedPrompt || null,
           promptMode: normalizedPromptMode,
@@ -254,6 +257,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
           webSearchCalls: latestWebSearchCalls,
           webSearchEnabled,
           refsCount: refCheck.refs.length,
+          ...designSystem.meta,
         };
         const rawBuffer = Buffer.from(image.b64, "base64");
         const embedded = await embedImageMetadataBestEffort(rawBuffer, format, meta, {
@@ -280,7 +284,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
       sendSse(res, "phase", { phase: "streaming", requestId, sequenceId, maxImages });
       const generated = await generateMultimodeViaResponses(
         activeProvider,
-        prompt,
+        promptForGeneration,
         quality,
         effectiveSize,
         moderation,

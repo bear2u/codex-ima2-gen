@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { registerProjectRoutes } from "./projects.js";
+import { registerDesignSystemRoutes } from "./designSystems.js";
 import { registerCapabilitiesRoutes } from "./capabilities.js";
 import { registerHealthRoutes } from "./health.js";
 import { registerHistoryRoutes } from "./history.js";
@@ -27,6 +28,7 @@ export function configureRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
   registerHealthRoutes(app, ctx);
   registerCapabilitiesRoutes(app, ctx);
   registerProjectRoutes(app);
+  registerDesignSystemRoutes(app, ctx);
   registerStorageRoutes(app, ctx);
   registerMetadataRoutes(app, ctx);
   registerHistoryRoutes(app, ctx);

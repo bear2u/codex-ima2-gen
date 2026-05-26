@@ -91,6 +91,8 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
   const d = data as ImageNodeData;
   const updateNodePrompt = useAppStore((s) => s.updateNodePrompt);
   const updateScreenFlowTitle = useAppStore((s) => s.updateScreenFlowTitle);
+  const setNodeDesignSystemEnabled = useAppStore((s) => s.setNodeDesignSystemEnabled);
+  const activeDesignSystemId = useAppStore((s) => s.activeDesignSystemId);
   const addNodeReferences = useAppStore((s) => s.addNodeReferences);
   const readDroppedImageMetadata = useAppStore((s) => s.readDroppedImageMetadata);
   const removeNodeReference = useAppStore((s) => s.removeNodeReference);
@@ -106,6 +108,7 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
   const [enhancingPrompt, setEnhancingPrompt] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const refs = d.referenceImages ?? [];
+  const designSystemEnabled = d.designSystemEnabled !== false;
   const isBusy = d.status === "pending" || d.status === "reconciling";
   const canAttachRefs = !isBusy && refs.length < MAX_NODE_REFS;
   const nodeStyle = {
@@ -383,6 +386,18 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
         />
         <div className="image-node__composer-bar">
           <div className="image-node__composer-tools">
+            <label
+              className="image-node__design-system-toggle"
+              title={designSystemEnabled ? t("node.designSystemOnTitle") : t("node.designSystemOffTitle")}
+            >
+              <input
+                type="checkbox"
+                checked={designSystemEnabled}
+                disabled={isBusy || !activeDesignSystemId}
+                onChange={(event) => setNodeDesignSystemEnabled(id, event.target.checked)}
+              />
+              <span>{t("node.designSystemToggle")}</span>
+            </label>
             <button
               type="button"
               className="image-node__tool-btn"

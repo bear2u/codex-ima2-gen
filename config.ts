@@ -20,6 +20,20 @@ const env = process.env;
 const packageRoot = dirname(fileURLToPath(import.meta.url));
 const configDir = env.IMA2_CONFIG_DIR || join(homedir(), ".ima2");
 
+function findBundledOpenDesignRoot(): string {
+  const candidates = [
+    join(packageRoot, "open-design"),
+    join(packageRoot, "..", "open-design"),
+    join(packageRoot, "..", "..", "workspaces_codex_design", "open-design"),
+    join(homedir(), "workspaces_codex_design", "open-design"),
+    join(homedir(), "workspaces_codex", "open-design"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, "design-systems"))) return candidate;
+  }
+  return "";
+}
+
 // ── Optional config.json layer ─────────────────────────────────────────
 // Users can drop `${configDir}/config.json` to override defaults without
 // setting env vars. Shape: same as the `config` object below (partial).
@@ -230,6 +244,23 @@ export const config = {
     configFile: join(configDir, "config.json"),
     advertiseFile: pickStr(env.IMA2_ADVERTISE_FILE, fileCfg.storage?.advertiseFile, join(configDir, "server.json")),
     staticMaxAge: pickStr(env.IMA2_STATIC_MAX_AGE, fileCfg.storage?.staticMaxAge, "1y"),
+  },
+  designSystems: {
+    openDesignRoot: pickStr(
+      env.IMA2_OPEN_DESIGN_ROOT,
+      fileCfg.designSystems?.openDesignRoot,
+      findBundledOpenDesignRoot(),
+    ),
+    maxBodyChars: pickPositiveInt(
+      env.IMA2_DESIGN_SYSTEM_MAX_BODY_CHARS,
+      fileCfg.designSystems?.maxBodyChars,
+      120_000,
+    ),
+    maxPromptPrefixChars: pickPositiveInt(
+      env.IMA2_DESIGN_SYSTEM_MAX_PROMPT_PREFIX,
+      fileCfg.designSystems?.maxPromptPrefixChars,
+      6_000,
+    ),
   },
   ids: {
     generatedHexBytes: pickInt(env.IMA2_GENERATED_HEX_BYTES, fileCfg.ids?.generatedHexBytes, 4),

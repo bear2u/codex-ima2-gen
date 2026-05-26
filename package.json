@@ -52,6 +52,7 @@
     "integrations/comfyui/ima2_gen_bridge/README.md",
     "ui/dist/",
     "docs/",
+    "open-design/",
     "assets/card-news/templates/",
     "server.ts",
     "config.ts",

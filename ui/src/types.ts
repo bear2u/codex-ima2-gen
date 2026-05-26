@@ -128,6 +128,11 @@ export type EmbeddedGenerationMetadata = {
   requestId?: string | null;
   refsCount?: number;
   webSearchCalls?: number;
+  designSystemApplied?: boolean;
+  designSystemId?: string | null;
+  designSystemTitle?: string | null;
+  designSystemSource?: string | null;
+  designSystemSkippedReason?: string | null;
 };
 
 export type GenerateSingleResponse = {
@@ -187,6 +192,20 @@ export type GenerateRequest = {
   webSearchEnabled?: boolean;
   composerPrompt?: string;
   composerInsertedPrompts?: ComposerInsertedPromptSnapshot[];
+};
+
+export type DesignSystemSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  summary: string;
+  swatches: string[];
+  source: "custom" | "library";
+  body?: string;
+  projectId?: string;
+  createdAt?: number;
+  updatedAt?: number;
 };
 
 export type MultimodeGenerateRequest = Omit<GenerateRequest, "n"> & {

@@ -4266,6 +4266,31 @@ body {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.image-node__design-system-toggle {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--mono);
+  font-size: 10px;
+  gap: 5px;
+  min-height: 26px;
+  padding: 4px 7px;
+}
+.image-node__design-system-toggle input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+.image-node__design-system-toggle:has(input:checked) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.image-node__design-system-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 .image-node__attach {
   border: 1px solid var(--border);
   background: var(--surface-3);

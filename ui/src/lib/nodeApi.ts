@@ -19,6 +19,7 @@ export type NodeGenerateRequest = {
   projectId?: string | null;
   sessionId?: string | null;
   clientNodeId?: string | null;
+  designSystemEnabled?: boolean;
 };
 
 export type NodeGenerateResponse = {
@@ -40,6 +41,11 @@ export type NodeGenerateResponse = {
   searchMode?: "off" | "auto" | "on";
   revisedPrompt?: string | null;
   promptMode?: "auto" | "direct";
+  designSystemApplied?: boolean;
+  designSystemId?: string;
+  designSystemTitle?: string;
+  designSystemSource?: string;
+  designSystemSkippedReason?: string;
 };
 
 export type NodeErrorResponse = {

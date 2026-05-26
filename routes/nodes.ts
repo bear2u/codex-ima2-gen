@@ -24,6 +24,7 @@ import { logEvent, logError } from "../lib/logger.js";
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
 import { requireProject } from "../lib/projectStore.js";
+import { applyProjectDesignSystem } from "../lib/designSystemPrompt.js";
 
 function asUpstream(e: unknown): UpstreamErr {
   return (e && typeof e === "object" ? e : {}) as UpstreamErr;
@@ -99,6 +100,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       reasoningEffort?: string;
       provider?: string;
       webSearchEnabled?: boolean;
+      designSystemEnabled?: boolean;
     };
     const streamResponse = wantsSse(req);
     const parentNodeId = (typeof body.parentNodeId === "string" ? body.parentNodeId : null);
@@ -194,6 +196,10 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
           parentNodeId,
         });
       }
+      const designSystem = applyProjectDesignSystem(projectId, prompt, {
+        enabled: body.designSystemEnabled !== false,
+      });
+      const promptForGeneration = designSystem.prompt;
       const refCheckResult = validateAndNormalizeRefs(references);
       if (refCheckResult.error) {
         finishStatus = "error";
@@ -289,7 +295,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
             webSearchEnabled,
           });
           const r = parentB64
-            ? await editViaResponses(activeProvider, prompt, parentB64, quality, effectiveSize, moderation, normalizedPromptMode, ctx, requestId, {
+            ? await editViaResponses(activeProvider, promptForGeneration, parentB64, quality, effectiveSize, moderation, normalizedPromptMode, ctx, requestId, {
                 model: imageModel,
                 references: refsForRequest,
                 searchMode,
@@ -299,7 +305,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
               })
             : await generateViaResponses(
                 activeProvider,
-                prompt,
+                promptForGeneration,
                 quality,
                 effectiveSize,
                 moderation,
@@ -403,7 +409,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         projectId,
         sessionId,
         clientNodeId,
-        prompt,
+        prompt: promptForGeneration,
         userPrompt: prompt,
         revisedPrompt,
         promptMode: normalizedPromptMode,
@@ -425,6 +431,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         size: effectiveSize,
         format,
         moderation,
+        ...designSystem.meta,
       };
       await mkdir(ctx.config.storage.generatedDir, { recursive: true });
       throwIfJobCanceled(requestId);
@@ -466,6 +473,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         warnings: qualityWarnings,
         revisedPrompt,
         promptMode: normalizedPromptMode,
+        ...designSystem.meta,
       };
 
       if (streamResponse) {

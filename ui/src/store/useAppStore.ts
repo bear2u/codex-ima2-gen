@@ -24,6 +24,7 @@ import type {
   ThemeFamily,
   ThemePreference,
   UIMode,
+  DesignSystemSummary,
 } from "../types";
 import { THEME_FAMILIES } from "../types";
 import { isMultiResponse } from "../types";
@@ -38,6 +39,12 @@ import {
   createProject as apiCreateProject,
   renameProject as apiRenameProject,
   deleteProject as apiDeleteProject,
+  getDesignSystemLibrary,
+  getDesignSystemLibraryItem,
+  getProjectDesignSystems,
+  importProjectDesignSystem,
+  setProjectActiveDesignSystem,
+  deleteProjectDesignSystem,
   listSessions as apiListSessions,
   createSession as apiCreateSession,
   getSession as apiGetSession,
@@ -741,6 +748,7 @@ export type ImageNodeData = {
   size?: string | null;
   sizeMode?: "inherit" | "auto" | "fixed";
   sizeOverride?: string | null;
+  designSystemEnabled?: boolean;
   referenceImages?: string[];
   screenFlow?: {
     flowName?: string;
@@ -869,6 +877,7 @@ function mapSessionToGraph(session: SessionFull): {
       size: (d.size ?? null) as string | null,
       sizeMode: d.sizeMode as ImageNodeData["sizeMode"],
       sizeOverride: (d.sizeOverride ?? null) as string | null,
+      designSystemEnabled: d.designSystemEnabled !== false,
       referenceImages: loadNodeRefs(session.id, n.id),
       screenFlow: d.screenFlow as ImageNodeData["screenFlow"],
     };
@@ -1098,6 +1107,7 @@ type AppState = {
   ) => void;
   updateNodePrompt: (clientId: ClientNodeId, prompt: string) => void;
   updateScreenFlowTitle: (clientId: ClientNodeId, title: string) => void;
+  setNodeDesignSystemEnabled: (clientId: ClientNodeId, enabled: boolean) => void;
   setNodeSizeOverride: (
     clientId: ClientNodeId,
     mode: NonNullable<ImageNodeData["sizeMode"]>,
@@ -1129,7 +1139,18 @@ type AppState = {
   projects: ProjectSummary[];
   activeProjectId: string | null;
   projectLoading: boolean;
+  projectDesignSystems: DesignSystemSummary[];
+  designSystemLibrary: DesignSystemSummary[];
+  activeDesignSystemId: string | null;
+  designSystemLoading: boolean;
   loadProjects: () => Promise<void>;
+  loadProjectDesignSystems: () => Promise<void>;
+  loadDesignSystemLibrary: () => Promise<void>;
+  importDesignSystemMarkdown: (body: string, slug?: string) => Promise<void>;
+  importDesignSystemFromLibrary: (libraryId: string) => Promise<void>;
+  setActiveDesignSystem: (id: string | null) => Promise<void>;
+  deleteDesignSystem: (id: string) => Promise<void>;
+  previewLibraryDesignSystem: (id: string) => Promise<string | null>;
   selectProject: (id: string) => Promise<void>;
   createAndSelectProject: (title?: string) => Promise<void>;
   renameActiveProject: (title: string) => Promise<void>;
@@ -2144,6 +2165,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   activeProjectId: null,
   projectLoading: false,
+  projectDesignSystems: [],
+  designSystemLibrary: [],
+  activeDesignSystemId: null,
+  designSystemLoading: false,
   async loadProjects() {
     set({ projectLoading: true });
     try {
@@ -2159,6 +2184,98 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       console.warn("[projects] load failed:", err);
       set({ projectLoading: false });
+    }
+  },
+  async loadProjectDesignSystems() {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    set({ designSystemLoading: true });
+    try {
+      const { systems, activeDesignSystemId } = await getProjectDesignSystems(projectId);
+      set({ projectDesignSystems: systems, activeDesignSystemId, designSystemLoading: false });
+    } catch (err) {
+      console.warn("[design systems] project load failed:", err);
+      set({ designSystemLoading: false });
+    }
+  },
+  async loadDesignSystemLibrary() {
+    try {
+      const { systems } = await getDesignSystemLibrary();
+      set({ designSystemLibrary: systems });
+    } catch (err) {
+      console.warn("[design systems] library load failed:", err);
+      set({ designSystemLibrary: [] });
+    }
+  },
+  async importDesignSystemMarkdown(body, slug) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      const { designSystem, activeDesignSystemId } = await importProjectDesignSystem(projectId, {
+        body,
+        slug,
+        makeActive: true,
+      });
+      set({
+        projectDesignSystems: [designSystem, ...get().projectDesignSystems],
+        activeDesignSystemId,
+      });
+      get().showToast(t("designSystem.imported"));
+    } catch (err) {
+      console.warn("[design systems] import failed:", err);
+      get().showToast(t("designSystem.importFailed"), true);
+    }
+  },
+  async importDesignSystemFromLibrary(libraryId) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      const { designSystem, activeDesignSystemId } = await importProjectDesignSystem(projectId, {
+        libraryId,
+        makeActive: true,
+      });
+      set({
+        projectDesignSystems: [designSystem, ...get().projectDesignSystems],
+        activeDesignSystemId,
+      });
+      get().showToast(t("designSystem.imported"));
+    } catch (err) {
+      console.warn("[design systems] library import failed:", err);
+      get().showToast(t("designSystem.importFailed"), true);
+    }
+  },
+  async setActiveDesignSystem(id) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      const { activeDesignSystemId } = await setProjectActiveDesignSystem(projectId, id);
+      set({ activeDesignSystemId });
+    } catch (err) {
+      console.warn("[design systems] activate failed:", err);
+      get().showToast(t("designSystem.activateFailed"), true);
+    }
+  },
+  async deleteDesignSystem(id) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      const { activeDesignSystemId } = await deleteProjectDesignSystem(projectId, id);
+      set({
+        activeDesignSystemId,
+        projectDesignSystems: get().projectDesignSystems.filter((system) => system.id !== id),
+      });
+    } catch (err) {
+      console.warn("[design systems] delete failed:", err);
+      get().showToast(t("designSystem.deleteFailed"), true);
+    }
+  },
+  async previewLibraryDesignSystem(id) {
+    try {
+      const { system } = await getDesignSystemLibraryItem(id);
+      return system.body ?? null;
+    } catch (err) {
+      console.warn("[design systems] preview failed:", err);
+      return null;
     }
   },
   async selectProject(id) {
@@ -2177,7 +2294,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentImage: null,
       historyNextCursor: null,
       loadedHistoryRetainLimit: HISTORY_LIMIT,
+      projectDesignSystems: [],
+      activeDesignSystemId: null,
     });
+    await get().loadProjectDesignSystems();
     await get().loadSessions();
     get().hydrateHistory();
   },
@@ -2222,6 +2342,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           graphEdges: [],
           history: [],
           currentImage: null,
+          projectDesignSystems: [],
+          activeDesignSystemId: null,
         });
       }
     } catch (err) {
@@ -2500,6 +2622,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         size: null,
         sizeMode: "inherit",
         sizeOverride: null,
+        designSystemEnabled: true,
       },
     };
     set({ graphNodes: [...get().graphNodes, node] });
@@ -2524,6 +2647,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         pendingPhase: null,
         model: item.model ?? null,
         size: item.size ?? null,
+        designSystemEnabled: true,
       },
     };
     set({
@@ -2551,6 +2675,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        designSystemEnabled: true,
         ...inheritNodeSizeData(parent.data),
       },
     };
@@ -2589,6 +2714,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           status: "empty",
           pendingRequestId: null,
           pendingPhase: null,
+          designSystemEnabled: true,
           ...inheritNodeSizeData(source.data),
         },
       };
@@ -2615,6 +2741,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        designSystemEnabled: true,
         ...inheritNodeSizeData(source.data),
       },
     };
@@ -2637,6 +2764,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       graphNodes: get().graphNodes.map((n) =>
         n.id === clientId ? { ...n, data: { ...n.data, prompt } } : n,
+      ),
+    });
+    get().scheduleGraphSave();
+  },
+
+  setNodeDesignSystemEnabled: (clientId, enabled) => {
+    set({
+      graphNodes: get().graphNodes.map((n) =>
+        n.id === clientId
+          ? { ...n, data: { ...n.data, designSystemEnabled: enabled } }
+          : n,
       ),
     });
     get().scheduleGraphSave();
@@ -2827,6 +2965,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        designSystemEnabled: true,
         ...inheritNodeSizeData(source.data),
       },
     };
@@ -3032,6 +3171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         projectId: s.activeProjectId,
         sessionId: requestSessionId,
         clientNodeId: clientId,
+        designSystemEnabled: node.data.designSystemEnabled !== false,
         contextMode: "parent-plus-refs",
         searchMode: s.webSearchEnabled ? "on" : "off",
         webSearchEnabled: s.webSearchEnabled,
@@ -3276,6 +3416,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        designSystemEnabled: true,
         ...inheritNodeSizeData(parent.data),
       },
     };

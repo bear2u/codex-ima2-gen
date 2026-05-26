@@ -65,6 +65,22 @@
     "comfyExportFailed": "Could not upload image to ComfyUI.",
     "cancelFailed": "Could not cancel generation."
   },
+  "designSystem": {
+    "settingsTitle": "Project design system",
+    "settingsBody": "Apply one DESIGN.md consistently to this project's generations. Nodes can opt out individually.",
+    "noneActive": "No active design system",
+    "clearActive": "Disable for project",
+    "slugPlaceholder": "Optional slug",
+    "bodyPlaceholder": "Paste DESIGN.md here",
+    "importMarkdown": "Import DESIGN.md",
+    "importLibrary": "Import preset",
+    "libraryUnavailable": "No open-design presets found",
+    "preview": "Preview",
+    "imported": "Design system imported",
+    "importFailed": "Failed to import design system",
+    "activateFailed": "Failed to set active design system",
+    "deleteFailed": "Failed to delete design system"
+  },
   "inflight": {
     "queued": "Queued",
     "streaming": "Generating",
@@ -462,6 +478,9 @@
     "generate": "Gen",
     "generateTitle": "Generate node image",
     "enhancePromptTitle": "Make prompt slightly more specific",
+    "designSystemToggle": "Design system",
+    "designSystemOnTitle": "Use the active project design system for this node",
+    "designSystemOffTitle": "Do not use the active project design system for this node",
     "addChild": "Child",
     "addChildTitle": "Add child node",
     "duplicateBranch": "Branch",

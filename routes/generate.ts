@@ -22,6 +22,7 @@ import {
   normalizeComposerPrompt,
 } from "../lib/composerSnapshot.js";
 import { requireProject } from "../lib/projectStore.js";
+import { applyProjectDesignSystem } from "../lib/designSystemPrompt.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -86,6 +87,8 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
       const normalizedPromptMode = promptMode === "direct" ? "direct" : "auto";
 
       if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+      const designSystem = applyProjectDesignSystem(projectId, String(prompt));
+      const promptForGeneration = designSystem.prompt;
       const moderationCheck = validateModeration(ctx, moderation);
       if (moderationCheck.error) return res.status(400).json({ error: moderationCheck.error });
       const count = Math.min(Math.max(parseInt(n) || 1, 1), 8);
@@ -160,7 +163,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
           try {
             const r = await generateViaResponses(
               activeProvider,
-              prompt,
+              promptForGeneration,
               quality,
               effectiveSize,
               moderation,
@@ -210,7 +213,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
             projectId,
             sessionId,
             clientNodeId,
-            prompt,
+            prompt: promptForGeneration,
             userPrompt: prompt,
             revisedPrompt: r.value.revisedPrompt || null,
             promptMode: normalizedPromptMode,
@@ -227,6 +230,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
             webSearchCalls: r.value.webSearchCalls || 0,
             webSearchEnabled,
             refsCount: refCheck.refs.length,
+            ...designSystem.meta,
           };
           const rawBuffer = Buffer.from(r.value.b64, "base64");
           const embedded: any = await embedImageMetadataBestEffort(rawBuffer, format, meta, {

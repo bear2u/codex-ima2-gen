@@ -7,6 +7,7 @@ import type {
   MultimodeGenerateResponse,
   GenerateResponse,
   OAuthStatus,
+  DesignSystemSummary,
 } from "../types";
 import type { SavedCanvasAnnotations } from "../types/canvas";
 
@@ -112,6 +113,58 @@ export function postGenerate(payload: GenerateRequest): Promise<GenerateResponse
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function getDesignSystemLibrary(): Promise<{
+  systems: DesignSystemSummary[];
+  available: boolean;
+}> {
+  return jsonFetch("/api/design-systems/library");
+}
+
+export function getDesignSystemLibraryItem(id: string): Promise<{
+  system: DesignSystemSummary & { body: string };
+}> {
+  return jsonFetch(`/api/design-systems/library/${encodeURIComponent(id)}`);
+}
+
+export function getProjectDesignSystems(projectId: string): Promise<{
+  systems: DesignSystemSummary[];
+  activeDesignSystemId: string | null;
+}> {
+  return jsonFetch(`/api/projects/${encodeURIComponent(projectId)}/design-systems`);
+}
+
+export function importProjectDesignSystem(
+  projectId: string,
+  payload: { body?: string; slug?: string; libraryId?: string; makeActive?: boolean },
+): Promise<{ designSystem: DesignSystemSummary; activeDesignSystemId: string | null }> {
+  return jsonFetch(`/api/projects/${encodeURIComponent(projectId)}/design-systems`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setProjectActiveDesignSystem(
+  projectId: string,
+  designSystemId: string | null,
+): Promise<{ ok: boolean; activeDesignSystemId: string | null }> {
+  return jsonFetch(`/api/projects/${encodeURIComponent(projectId)}/design-systems/active`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ designSystemId }),
+  });
+}
+
+export function deleteProjectDesignSystem(
+  projectId: string,
+  designSystemId: string,
+): Promise<{ ok: boolean; activeDesignSystemId: string | null }> {
+  return jsonFetch(
+    `/api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}`,
+    { method: "DELETE" },
+  );
 }
 
 function parseSseBlock(block: string): { event: string | null; data: unknown } | null {
