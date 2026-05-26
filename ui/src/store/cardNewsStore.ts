@@ -316,6 +316,7 @@ export const useCardNewsStore = create<CardNewsState>((set, get) => ({
         quality: app.quality,
         moderation: app.moderation,
         model: app.imageModel,
+        projectId: app.activeProjectId,
         sessionId: app.activeSessionId,
       });
       let summary = first;

@@ -72,4 +72,16 @@ describe("Agent Mode right sidebar contract", () => {
     assert.match(api, /cancelAgentQueueItem/);
     assert.match(api, /retryAgentQueueItem/);
   });
+
+  it("defaults Agent model settings to GPT-5.5 across client and server", () => {
+    const clientDefaults = readSource("ui/src/lib/agentGenerationSettings.ts");
+    const serverDefaults = readSource("lib/agentSettings.ts");
+
+    assert.match(clientDefaults, /model: "gpt-5\.5"/);
+    assert.match(serverDefaults, /model: "gpt-5\.5"/);
+    assert.match(clientDefaults, /LEGACY_DEFAULT_AGENT_MODEL = "gpt-5\.4-mini"/);
+    assert.match(serverDefaults, /LEGACY_DEFAULT_AGENT_MODEL = "gpt-5\.4-mini"/);
+    assert.match(clientDefaults, /migrateLegacyAgentDefaults/);
+    assert.match(serverDefaults, /migrateLegacyAgentDefaults/);
+  });
 });

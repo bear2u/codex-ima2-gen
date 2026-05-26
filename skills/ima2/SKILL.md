@@ -173,6 +173,43 @@ Import a raw image into history:
 ima2 history import ./local-image.png
 ```
 
+## Screen Flow Import
+
+Use the server API as the authority for importing local webapp screenshots into
+Node Mode. Browser or MCP tooling should capture localhost pages first, then send
+the captured image data to ima2:
+
+```http
+POST /api/screen-flows/import
+Content-Type: application/json
+
+{
+  "sessionId": "optional-existing-session",
+  "baseUrl": "http://127.0.0.1:3000",
+  "flowName": "Checkout flow",
+  "layout": "horizontal",
+  "screens": [
+    {
+      "url": "/cart",
+      "title": "Cart",
+      "note": "entry screen",
+      "image": "data:image/png;base64,..."
+    },
+    {
+      "url": "/checkout",
+      "title": "Checkout",
+      "image": "data:image/png;base64,..."
+    }
+  ]
+}
+```
+
+Only localhost URLs are accepted. Imported captures are normalized to generated
+PNG assets, placed as Node Mode root nodes, and connected with `screen-flow`
+edges in the provided order. This keeps screen-flow edges separate from edit
+lineage while still allowing normal child edit generation from each imported
+screen node.
+
 ## Defaults
 
 Inspect the running server defaults:

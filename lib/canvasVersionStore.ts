@@ -7,6 +7,7 @@ import { invalidateHistoryIndex } from "./historyIndex.js";
 import type { RuntimeContext } from "./runtimeContext.js";
 
 interface CanvasMeta {
+  projectId: string;
   kind: string;
   provider: string;
   format: string;
@@ -37,12 +38,14 @@ interface StoredGeneratedMeta {
   createdAt?: number;
   canvasMergedAt?: number;
   canvasSourceFilename?: string | null;
+  projectId?: string | null;
 }
 
 interface CanvasInput {
   buffer: unknown;
   sourceFilename?: string | null;
   prompt?: string | null;
+  projectId: string;
 }
 
 const PNG_SIGNATURE = "89504e470d0a1a0a";
@@ -132,6 +135,7 @@ function toGenerateItem(filename: string, meta: CanvasMeta) {
     url,
     thumb: url,
     filename,
+    projectId: meta.projectId,
     prompt: meta.prompt || undefined,
     userPrompt: meta.userPrompt || meta.prompt || null,
     revisedPrompt: null,
@@ -166,6 +170,7 @@ export async function createCanvasVersion(ctx: RuntimeContext, input: CanvasInpu
   const sourceMeta = await readGeneratedMetadata(ctx, sourceFilename);
   const prompt = firstString(input.prompt, sourceMeta?.userPrompt, sourceMeta?.prompt);
   const meta = {
+    projectId: input.projectId,
     kind: "edit",
     provider: "canvas",
     format: "png",
@@ -206,6 +211,7 @@ export async function updateCanvasVersion(ctx: RuntimeContext, filename: string,
     previousMeta?.prompt,
   );
   const meta = {
+    projectId: input.projectId,
     kind: "edit",
     provider: "canvas",
     format: "png",

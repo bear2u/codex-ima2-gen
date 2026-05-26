@@ -306,9 +306,11 @@ async function persistAgentImage(
   await mkdir(ctx.config.storage.generatedDir, { recursive: true });
   const rand = randomBytes(ctx.config.ids.generatedHexBytes).toString("hex");
   const filename = `${Date.now()}_${rand}_agent.${format}`;
+  const projectId = getAgentSession(sessionId)?.projectId ?? null;
   const meta = {
     kind: "agent",
     requestId,
+    projectId,
     sessionId,
     prompt,
     userPrompt: prompt,

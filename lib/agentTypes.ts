@@ -117,6 +117,7 @@ export interface AgentImageHandle {
 
 export interface AgentSessionSummary {
   id: string;
+  projectId?: string | null;
   title: string;
   codexThreadId: string | null;
   lastTurnId: string | null;

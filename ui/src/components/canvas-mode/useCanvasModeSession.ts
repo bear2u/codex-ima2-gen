@@ -27,6 +27,7 @@ import {
 interface UseCanvasModeSessionArgs {
   imageElementRef: RefObject<HTMLImageElement | null>;
   currentImage: GenerateItem | null;
+  activeProjectId: string | null;
   canvasDisplayImage: GenerateItem | null;
   canvasSourceImageRef: RefObject<GenerateItem | null>;
   lastMergedDataUrlRef: RefObject<string | null>;
@@ -60,6 +61,7 @@ interface UseCanvasModeSessionArgs {
 export function useCanvasModeSession({
   imageElementRef,
   currentImage,
+  activeProjectId,
   canvasDisplayImage,
   canvasSourceImageRef,
   lastMergedDataUrlRef,
@@ -111,11 +113,13 @@ export function useCanvasModeSession({
             image: merged.blob,
             sourceFilename: source.canvasSourceFilename ?? source.filename,
             prompt: source.prompt,
+            projectId: activeProjectId,
           })
         : await createCanvasVersion({
             sourceFilename: source.filename,
             image: merged.blob,
             prompt: source.prompt,
+            projectId: activeProjectId,
           });
       const savedItem = withSourcePrompt(result.item, source);
       setCanvasVersionItem(savedItem);
@@ -222,6 +226,7 @@ export function useCanvasModeSession({
         reasoningEffort,
         mode: promptMode,
         webSearchEnabled,
+        projectId: activeProjectId,
       });
       await addGeneratedHistoryItem(responseToGenerateItem(response, prompt));
     } catch (err) {

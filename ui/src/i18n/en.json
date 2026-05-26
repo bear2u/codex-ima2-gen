@@ -104,6 +104,18 @@
       "pixels": "pixel limit"
     }
   },
+  "nodeSize": {
+    "title": "Node size",
+    "global": "Global",
+    "globalSub": "Panel default",
+    "auto": "Auto",
+    "autoSub": "Parent based",
+    "mode": {
+      "inherit": "Global",
+      "auto": "Auto",
+      "fixed": "Fixed"
+    }
+  },
   "sizeConfirm": {
     "title": "Size adjustment required",
     "body": "The requested size is outside the image generation limits.",
@@ -436,16 +448,20 @@
     "error": "Error: {error}",
     "errorUnknown": "unknown",
     "nodeImageAlt": "Node image",
+    "zoomImageTitle": "View image larger",
     "partialImageAlt": "Partial node image preview",
     "noAsset": "No asset",
     "stateStale": "State stale",
     "noImage": "No image",
+    "screenFlow": "Screen flow",
+    "screenTitlePlaceholder": "Screen title",
     "editPromptPlaceholder": "Edit prompt...",
     "promptPlaceholder": "Prompt...",
     "regenerate": "Regen",
     "newVariation": "New variant",
     "generate": "Gen",
     "generateTitle": "Generate node image",
+    "enhancePromptTitle": "Make prompt slightly more specific",
     "addChild": "Child",
     "addChildTitle": "Add child node",
     "duplicateBranch": "Branch",
@@ -889,7 +905,18 @@
     "loading": "Loading session...",
     "addFirst": "+ Add first node",
     "addRootTitle": "Add root node",
-    "hint": "Drag a handle into empty space to branch. Press Delete or Backspace to remove."
+    "hint": "Drag a handle into empty space to branch. Press Delete or Backspace to remove.",
+    "screenFlowName": "Flow name",
+    "screenFlowNamePlaceholder": "Example: Onboarding flow",
+    "screenFlowLayout": "Layout",
+    "screenFlowHorizontal": "Horizontal",
+    "screenFlowVertical": "Vertical",
+    "screenFlowImported": "Imported {count} screens.",
+    "screenFlowFailed": "Failed to import screen flow.",
+    "adbCapture": "ADB capture",
+    "adbCapturing": "Capturing...",
+    "adbImported": "Imported the ADB screen as a node.",
+    "adbFailed": "Failed to capture the ADB screen."
   },
   "apiDisabled": {
     "title": "{provider} unavailable",

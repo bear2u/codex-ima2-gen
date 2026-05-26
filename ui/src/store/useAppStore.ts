@@ -34,12 +34,18 @@ import {
   getInflight,
   cancelInflight,
   postNodeGenerateStream,
+  listProjects as apiListProjects,
+  createProject as apiCreateProject,
+  renameProject as apiRenameProject,
+  deleteProject as apiDeleteProject,
   listSessions as apiListSessions,
   createSession as apiCreateSession,
   getSession as apiGetSession,
   renameSession as apiRenameSession,
   deleteSession as apiDeleteSession,
   saveSessionGraph,
+  importScreenFlow as apiImportScreenFlow,
+  importAdbScreen as apiImportAdbScreen,
   readImageMetadata,
   getBrowserId,
   deleteHistoryItem,
@@ -53,9 +59,11 @@ import {
   importPromptLibrary,
   importLocalImage,
   type HistoryCursor,
+  type ProjectSummary,
   type SessionSummary,
   type SessionFull,
   type SessionGraphEdge,
+  type ScreenFlowScreenInput,
 } from "../lib/api";
 import { compressImage, readFileAsDataURL } from "../lib/image";
 import { compressToBase64, isHeic, hasAlphaChannel } from "../lib/compress";
@@ -77,6 +85,7 @@ import {
   DEFAULT_WEB_SEARCH_ENABLED,
 } from "../lib/webSearch";
 import {
+  ACTIVE_PROJECT_ID_STORAGE_KEY,
   ACTIVE_SESSION_ID_STORAGE_KEY,
   CANVAS_EXPORT_BG_KEY,
   GALLERY_DEFAULT_SCOPE_STORAGE_KEY,
@@ -274,6 +283,7 @@ type PersistedInFlight = {
   composerPrompt?: string;
   composerInsertedPrompts?: InsertedPrompt[];
   phase?: string;
+  projectId?: string | null;
   sessionId?: string | null;
   parentNodeId?: string | null;
   clientNodeId?: string | null;
@@ -306,19 +316,23 @@ type ServerTerminalJob = ServerInFlightJob & {
 
 type InflightQueryScope = {
   kind: NonNullable<PersistedInFlight["kind"]>;
+  projectId?: string;
   sessionId?: string;
 };
 
 function getInflightQueryScopes(state: {
   uiMode: UIMode;
+  activeProjectId?: string | null;
   activeSessionId?: string | null;
   inFlight: PersistedInFlight[];
 }): InflightQueryScope[] {
+  const projectId = state.activeProjectId ?? undefined;
   const scopes: InflightQueryScope[] = state.uiMode === "node"
-    ? [{ kind: "node", sessionId: state.activeSessionId ?? undefined }]
-    : [{ kind: "classic" }];
+    ? [{ kind: "node", projectId, sessionId: state.activeSessionId ?? undefined }]
+    : [{ kind: "classic", projectId }];
   if (state.inFlight.some((job) => job.kind === "multimode")) {
-    scopes.push({ kind: "multimode" });
+    if (projectId) scopes.push({ kind: "multimode", projectId });
+    else scopes.push({ kind: "multimode" });
   }
   return scopes;
 }
@@ -327,6 +341,7 @@ function matchesInflightScope(job: PersistedInFlight, scopes: InflightQueryScope
   const kind = job.kind ?? "classic";
   return scopes.some((scope) =>
     kind === scope.kind &&
+    (!scope.projectId || (job.projectId ?? null) === scope.projectId) &&
     (scope.kind !== "node" || (job.sessionId ?? null) === (scope.sessionId ?? null)),
   );
 }
@@ -338,6 +353,7 @@ async function fetchInflightScopes(scopes: InflightQueryScope[]): Promise<{
   const responses = await Promise.all(scopes.map((scope) =>
     getInflight({
       kind: scope.kind,
+      projectId: scope.projectId,
       sessionId: scope.sessionId,
       includeTerminal: true,
     }),
@@ -545,6 +561,28 @@ function saveActiveSessionId(id: string | null): void {
   } catch {}
 }
 
+function upsertSessionSummary(sessions: SessionSummary[], next: SessionSummary): SessionSummary[] {
+  const exists = sessions.some((session) => session.id === next.id);
+  if (!exists) return [next, ...sessions];
+  return sessions.map((session) => (session.id === next.id ? { ...session, ...next } : session));
+}
+
+function loadActiveProjectId(): string | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
+    return raw && raw.trim() ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveProjectId(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(ACTIVE_PROJECT_ID_STORAGE_KEY, id);
+    else localStorage.removeItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
+  } catch {}
+}
+
 const HISTORY_LIMIT = 500;
 const MAX_REFERENCE_IMAGES = 5;
 
@@ -586,6 +624,7 @@ function mapHistoryItem(it: Awaited<ReturnType<typeof getHistory>>["items"][numb
     provider: it.provider,
     usage: (it.usage as GenerateItem["usage"]) ?? undefined,
     createdAt: it.createdAt,
+    projectId: it.projectId ?? null,
     sessionId: it.sessionId ?? null,
     nodeId: it.nodeId ?? null,
     clientNodeId: it.clientNodeId ?? null,
@@ -700,11 +739,21 @@ export type ImageNodeData = {
   webSearchCalls?: number;
   model?: string | null;
   size?: string | null;
+  sizeMode?: "inherit" | "auto" | "fixed";
+  sizeOverride?: string | null;
   referenceImages?: string[];
+  screenFlow?: {
+    flowName?: string;
+    index?: number;
+    screenUrl?: string;
+    title?: string;
+    note?: string | null;
+  };
 };
 
 export type GraphNode = FlowNode<ImageNodeData>;
 export type GraphEdge = FlowEdge;
+type NodeSizeMode = NonNullable<ImageNodeData["sizeMode"]>;
 
 const DEFAULT_CHILD_SOURCE_HANDLE = "source-right";
 const DEFAULT_CHILD_TARGET_HANDLE = "target-left";
@@ -743,6 +792,49 @@ function getOppositeTargetHandle(sourceHandle?: string | null): string | null {
   }
 }
 
+function inheritNodeSizeData(source: ImageNodeData): Pick<ImageNodeData, "size" | "sizeMode" | "sizeOverride"> {
+  return {
+    size: source.size ?? null,
+    sizeMode: source.sizeMode ?? "inherit",
+    sizeOverride: source.sizeOverride ?? null,
+  };
+}
+
+function shouldEmphasizeVisualRedesign(prompt: string): boolean {
+  return /(디자인|리디자인|예쁘|이쁘|가독성|개선|정돈|보기\s*좋|modern|redesign|polish|clean)/i
+    .test(prompt);
+}
+
+function buildNodeRequestPrompt(
+  prompt: string,
+  node: GraphNode,
+  options: { visualRedesign?: boolean } = {},
+): string {
+  if (!options.visualRedesign || !shouldEmphasizeVisualRedesign(prompt)) return prompt;
+  const isMobileScreen = Boolean(node.data.screenFlow || node.data.parentServerNodeId);
+  if (!isMobileScreen) return prompt;
+  return [
+    prompt,
+    "",
+    "중요: 원본 화면의 기능과 정보 구조는 유지하되, 결과가 원본 스크린샷을 거의 그대로 복사한 것처럼 보이지 않게 시각 디자인 변화가 분명히 드러나야 해.",
+    "새 섹션이나 새 기능을 추가하지 말고, 타이포그래피, 여백, 카드/버튼 스타일, 대비, 아이콘 정돈, 계층 구조를 더 세련되고 읽기 쉽게 재설계해.",
+  ].join("\n");
+}
+
+function resolveNodeGenerationSize(
+  node: GraphNode,
+  state: { graphNodes: GraphNode[]; graphEdges: GraphEdge[]; getResolvedSize: () => string },
+): string {
+  if (node.data.sizeMode === "fixed" && node.data.sizeOverride) return node.data.sizeOverride;
+  if (node.data.sizeMode === "auto") {
+    const incoming = state.graphEdges.find((edge) => edge.target === node.id);
+    const parent = incoming ? state.graphNodes.find((candidate) => candidate.id === incoming.source) : null;
+    const inferred = parent?.data.sizeOverride || parent?.data.size || node.data.sizeOverride || node.data.size;
+    if (inferred && inferred !== "auto") return inferred;
+  }
+  return state.getResolvedSize();
+}
+
 function mapSessionToGraph(session: SessionFull): {
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];
@@ -775,7 +867,10 @@ function mapSessionToGraph(session: SessionFull): {
       webSearchCalls: d.webSearchCalls as number | undefined,
       model: (d.model ?? null) as string | null,
       size: (d.size ?? null) as string | null,
+      sizeMode: d.sizeMode as ImageNodeData["sizeMode"],
+      sizeOverride: (d.sizeOverride ?? null) as string | null,
       referenceImages: loadNodeRefs(session.id, n.id),
+      screenFlow: d.screenFlow as ImageNodeData["screenFlow"],
     };
     return {
       id: n.id,
@@ -1002,6 +1097,12 @@ type AppState = {
     targetHandle?: string | null,
   ) => void;
   updateNodePrompt: (clientId: ClientNodeId, prompt: string) => void;
+  updateScreenFlowTitle: (clientId: ClientNodeId, title: string) => void;
+  setNodeSizeOverride: (
+    clientId: ClientNodeId,
+    mode: NonNullable<ImageNodeData["sizeMode"]>,
+    sizeOverride?: string | null,
+  ) => void;
   addNodeReferences: (clientId: ClientNodeId, files: File[]) => Promise<void>;
   addNodeReferenceDataUrl: (clientId: ClientNodeId, dataUrl: string) => void;
   removeNodeReference: (clientId: ClientNodeId, index: number) => void;
@@ -1015,6 +1116,7 @@ type AppState = {
     options?: {
       sizeOverride?: string;
       parentServerNodeIdOverride?: string | null;
+      visualRedesign?: boolean;
       suppressToast?: boolean;
     },
   ) => Promise<string | null>;
@@ -1024,6 +1126,14 @@ type AppState = {
   disconnectEdges: (edgeIds: string[]) => void;
 
   // Sessions (0.06)
+  projects: ProjectSummary[];
+  activeProjectId: string | null;
+  projectLoading: boolean;
+  loadProjects: () => Promise<void>;
+  selectProject: (id: string) => Promise<void>;
+  createAndSelectProject: (title?: string) => Promise<void>;
+  renameActiveProject: (title: string) => Promise<void>;
+  deleteProjectById: (id: string) => Promise<void>;
   sessions: SessionSummary[];
   activeSessionId: string | null;
   activeSessionGraphVersion: number | null;
@@ -1035,6 +1145,18 @@ type AppState = {
   deleteSessionById: (id: string) => Promise<void>;
   scheduleGraphSave: () => void;
   flushGraphSave: (reason?: GraphSaveReason) => Promise<void>;
+  importScreenFlow: (payload: {
+    baseUrl: string;
+    flowName?: string;
+    layout?: "horizontal" | "vertical";
+    screens: ScreenFlowScreenInput[];
+  }) => Promise<void>;
+  importAdbScreen: (payload?: {
+    deviceId?: string | null;
+    title?: string;
+    note?: string;
+    flowName?: string;
+  }) => Promise<void>;
 
   setProvider: (p: Provider) => void;
   setQuality: (q: Quality) => void;
@@ -1139,6 +1261,7 @@ const SIZE_PRESET_VALUES = new Set<SizePreset>([
   "1024x1360",
   "1824x1024",
   "1024x1824",
+  "1184x2560",
   "2048x2048",
   "2048x1152",
   "1152x2048",
@@ -1615,7 +1738,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           (max, it) => (it.createdAt && it.createdAt > max ? it.createdAt : max),
           0,
         );
-        const { items } = await getHistory({ limit: HISTORY_LIMIT, since: lastKnown });
+        const projectId = get().activeProjectId;
+        if (!projectId) return;
+        const { items } = await getHistory({ limit: HISTORY_LIMIT, since: lastKnown, projectId });
         const arr: GenerateItem[] = items.map(mapHistoryItem);
         if (arr.length > 0) {
           set((s) => {
@@ -1763,7 +1888,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!cursor || get().historyLoadingOlder) return;
     set({ historyLoadingOlder: true });
     try {
-      const res = await getHistory({ limit: HISTORY_LIMIT, cursor });
+      const projectId = get().activeProjectId;
+      if (!projectId) return;
+      const res = await getHistory({ limit: HISTORY_LIMIT, cursor, projectId });
       const incoming = res.items.map(mapHistoryItem);
       set((s) => {
         const seen = new Set(s.history.map((item) => item.filename ?? item.image));
@@ -1790,7 +1917,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   loadFavoriteHistory: async () => {
     try {
-      const res = await getHistory({ limit: HISTORY_LIMIT, favoritesOnly: true });
+      const projectId = get().activeProjectId;
+      const res = projectId
+        ? await getHistory({ limit: HISTORY_LIMIT, favoritesOnly: true, projectId })
+        : await getHistory({ limit: HISTORY_LIMIT, favoritesOnly: true });
       const incoming = res.items.map(mapHistoryItem);
       set((s) => {
         const history = mergeHistoryItems(s.history, incoming);
@@ -1813,7 +1943,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!cursor || get().favoriteHistoryLoadingOlder) return;
     set({ favoriteHistoryLoadingOlder: true });
     try {
-      const res = await getHistory({ limit: HISTORY_LIMIT, cursor, favoritesOnly: true });
+      const projectId = get().activeProjectId;
+      const res = projectId
+        ? await getHistory({ limit: HISTORY_LIMIT, cursor, favoritesOnly: true, projectId })
+        : await getHistory({ limit: HISTORY_LIMIT, cursor, favoritesOnly: true });
       const incoming = res.items.map(mapHistoryItem);
       set((s) => {
         const history = mergeHistoryItems(s.history, incoming);
@@ -2008,14 +2141,105 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().showToast(t("nodeBatch.stopQueued"));
   },
 
+  projects: [],
+  activeProjectId: null,
+  projectLoading: false,
+  async loadProjects() {
+    set({ projectLoading: true });
+    try {
+      const { projects } = await apiListProjects();
+      const savedId = loadActiveProjectId();
+      const savedExists = savedId ? projects.some((p) => p.id === savedId) : false;
+      set({
+        projects,
+        activeProjectId: savedExists ? savedId : null,
+        projectLoading: false,
+      });
+      if (savedId && !savedExists) saveActiveProjectId(null);
+    } catch (err) {
+      console.warn("[projects] load failed:", err);
+      set({ projectLoading: false });
+    }
+  },
+  async selectProject(id) {
+    await get().flushGraphSave("switch-session").catch(() => {});
+    saveActiveProjectId(id);
+    saveActiveSessionId(null);
+    saveSelectedFilename(null);
+    set({
+      activeProjectId: id,
+      sessions: [],
+      activeSessionId: null,
+      activeSessionGraphVersion: null,
+      graphNodes: [],
+      graphEdges: [],
+      history: [],
+      currentImage: null,
+      historyNextCursor: null,
+      loadedHistoryRetainLimit: HISTORY_LIMIT,
+    });
+    await get().loadSessions();
+    get().hydrateHistory();
+  },
+  async createAndSelectProject(title = "Untitled Project") {
+    try {
+      const { project } = await apiCreateProject(title);
+      set({ projects: [project, ...get().projects] });
+      await get().selectProject(project.id);
+    } catch (err) {
+      console.warn("[projects] create failed:", err);
+      get().showToast(t("toast.sessionCreateFailed"), true);
+    }
+  },
+  async renameActiveProject(title) {
+    const id = get().activeProjectId;
+    if (!id) return;
+    try {
+      await apiRenameProject(id, title);
+      set({
+        projects: get().projects.map((p) =>
+          p.id === id ? { ...p, title, updatedAt: Date.now() } : p,
+        ),
+      });
+    } catch {
+      get().showToast(t("toast.sessionRenameFailed"), true);
+    }
+  },
+  async deleteProjectById(id) {
+    try {
+      await apiDeleteProject(id);
+      const remaining = get().projects.filter((p) => p.id !== id);
+      set({ projects: remaining });
+      if (get().activeProjectId === id) {
+        saveActiveProjectId(null);
+        saveActiveSessionId(null);
+        set({
+          activeProjectId: null,
+          sessions: [],
+          activeSessionId: null,
+          activeSessionGraphVersion: null,
+          graphNodes: [],
+          graphEdges: [],
+          history: [],
+          currentImage: null,
+        });
+      }
+    } catch (err) {
+      console.warn("[projects] delete failed:", err);
+      get().showToast(t("toast.sessionDeleteFailed"), true);
+    }
+  },
+
   sessions: [],
   activeSessionId: null,
   activeSessionGraphVersion: null,
   sessionLoading: false,
 
   async loadSessions() {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
     try {
-      const { sessions } = await apiListSessions();
+      const { sessions } = await apiListSessions(projectId);
       set({ sessions });
       const current = get().activeSessionId;
       if (!current) {
@@ -2067,7 +2291,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (pendingNodes.length > 0) {
       let jobs: Array<{ requestId: string; phase?: string }> = [];
       try {
-        const res = await getInflight({ kind: "node", sessionId: sid });
+        const res = await getInflight({ kind: "node", projectId: get().activeProjectId ?? undefined, sessionId: sid });
         jobs = res.jobs;
       } catch {
         // If inflight cannot be queried, skip pending transition but still
@@ -2121,8 +2345,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async createAndSwitchSession(title?: string) {
     if (title == null) title = t("session.untitled");
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
     try {
-      const { session } = await apiCreateSession(title);
+      const { session } = await apiCreateSession(title, projectId);
       set({
         sessions: [session as SessionSummary, ...get().sessions],
         activeSessionId: session.id,
@@ -2184,23 +2410,98 @@ export const useAppStore = create<AppState>((set, get) => ({
     await flushGraphSaveImpl(get, set, reason);
   },
 
+  async importScreenFlow(payload) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      await get().flushGraphSave("manual");
+      const result = await apiImportScreenFlow({
+        ...payload,
+        sessionId: get().activeSessionId,
+        projectId,
+      });
+      const { graphNodes, graphEdges, graphVersion } = mapSessionToGraph(result.session);
+      set({
+        uiMode: "node",
+        activeSessionId: result.session.id,
+        activeSessionGraphVersion: graphVersion,
+        graphNodes,
+        graphEdges,
+        sessions: upsertSessionSummary(get().sessions, {
+          id: result.session.id,
+          projectId: result.session.projectId ?? projectId,
+          title: result.session.title,
+          createdAt: result.session.createdAt,
+          updatedAt: result.session.updatedAt,
+          graphVersion,
+          nodeCount: result.session.nodes.length,
+        }),
+      });
+      saveActiveSessionId(result.session.id);
+      get().showToast(t("nodeCanvas.screenFlowImported", { count: result.imported.length }));
+      await get().hydrateHistory();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("nodeCanvas.screenFlowFailed");
+      get().showToast(message || t("nodeCanvas.screenFlowFailed"), true);
+    }
+  },
+
+  async importAdbScreen(payload = {}) {
+    const projectId = get().activeProjectId;
+    if (!projectId) return;
+    try {
+      await get().flushGraphSave("manual");
+      const result = await apiImportAdbScreen({
+        ...payload,
+        sessionId: get().activeSessionId,
+        projectId,
+      });
+      const { graphNodes, graphEdges, graphVersion } = mapSessionToGraph(result.session);
+      set({
+        uiMode: "node",
+        activeSessionId: result.session.id,
+        activeSessionGraphVersion: graphVersion,
+        graphNodes,
+        graphEdges,
+        sessions: upsertSessionSummary(get().sessions, {
+          id: result.session.id,
+          projectId: result.session.projectId ?? projectId,
+          title: result.session.title,
+          createdAt: result.session.createdAt,
+          updatedAt: result.session.updatedAt,
+          graphVersion,
+          nodeCount: result.session.nodes.length,
+        }),
+      });
+      saveActiveSessionId(result.session.id);
+      get().showToast(t("nodeCanvas.adbImported"));
+      await get().hydrateHistory();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("nodeCanvas.adbFailed");
+      get().showToast(message || t("nodeCanvas.adbFailed"), true);
+    }
+  },
+
   addRootNode: () => {
     const clientId = newClientNodeId();
     const node: GraphNode = {
       id: clientId,
       type: "imageNode",
       position: getNextRootPosition(get().graphNodes),
-        data: {
-          clientId,
-          serverNodeId: null,
-          parentServerNodeId: null,
-          prompt: "",
-          imageUrl: null,
-          status: "empty",
-          pendingRequestId: null,
-          pendingPhase: null,
-        },
-      };
+      data: {
+        clientId,
+        serverNodeId: null,
+        parentServerNodeId: null,
+        prompt: "",
+        imageUrl: null,
+        status: "empty",
+        pendingRequestId: null,
+        pendingPhase: null,
+        size: null,
+        sizeMode: "inherit",
+        sizeOverride: null,
+      },
+    };
     set({ graphNodes: [...get().graphNodes, node] });
     get().scheduleGraphSave();
     return clientId;
@@ -2241,16 +2542,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       id: clientId,
       type: "imageNode",
       position: getNextChildPosition(parent, get().graphNodes, get().graphEdges),
-        data: {
-          clientId,
-          serverNodeId: null,
-          parentServerNodeId: parent.data.serverNodeId,
-          prompt: "",
-          imageUrl: null,
-          status: "empty",
-          pendingRequestId: null,
-          pendingPhase: null,
-        },
+      data: {
+        clientId,
+        serverNodeId: null,
+        parentServerNodeId: parent.data.serverNodeId,
+        prompt: "",
+        imageUrl: null,
+        status: "empty",
+        pendingRequestId: null,
+        pendingPhase: null,
+        ...inheritNodeSizeData(parent.data),
+      },
     };
     const edge: GraphEdge = {
       id: newGraphEdgeId(parentClientId, clientId, DEFAULT_CHILD_SOURCE_HANDLE, DEFAULT_CHILD_TARGET_HANDLE),
@@ -2287,6 +2589,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           status: "empty",
           pendingRequestId: null,
           pendingPhase: null,
+          ...inheritNodeSizeData(source.data),
         },
       };
       set({ graphNodes: [...get().graphNodes, node] });
@@ -2312,6 +2615,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        ...inheritNodeSizeData(source.data),
       },
     };
     const edge: GraphEdge = {
@@ -2334,6 +2638,55 @@ export const useAppStore = create<AppState>((set, get) => ({
       graphNodes: get().graphNodes.map((n) =>
         n.id === clientId ? { ...n, data: { ...n.data, prompt } } : n,
       ),
+    });
+    get().scheduleGraphSave();
+  },
+
+  setNodeSizeOverride: (clientId, mode, sizeOverride = null) => {
+    const normalizedMode: NodeSizeMode =
+      mode === "fixed" || mode === "auto" ? mode : "inherit";
+    const normalizedSize =
+      normalizedMode === "fixed" && sizeOverride ? sizeOverride : null;
+    set({
+      graphNodes: get().graphNodes.map((node) =>
+        node.id === clientId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                size: normalizedSize,
+                sizeMode: normalizedMode,
+                sizeOverride: normalizedSize,
+              },
+            }
+          : node,
+      ),
+    });
+    get().scheduleGraphSave();
+  },
+
+  updateScreenFlowTitle: (clientId, title) => {
+    const cleanTitle = title.slice(0, 120);
+    set({
+      graphNodes: get().graphNodes.map((node) => {
+        if (node.id !== clientId || !node.data.screenFlow) return node;
+        const currentPrompt = node.data.prompt || "";
+        const lines = currentPrompt.split("\n");
+        const prompt = [cleanTitle || node.data.screenFlow.screenUrl || "", ...lines.slice(1)]
+          .filter((line, index) => index === 0 || line.length > 0)
+          .join("\n");
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            prompt,
+            screenFlow: {
+              ...node.data.screenFlow,
+              title: cleanTitle,
+            },
+          },
+        };
+      }),
     });
     get().scheduleGraphSave();
   },
@@ -2474,6 +2827,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        ...inheritNodeSizeData(source.data),
       },
     };
     // no parent edge — becomes a new branch root at root layer
@@ -2554,8 +2908,25 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
     }
+    const incoming = get().graphEdges.find((e) => e.target === clientId);
+    if (!incoming && source.data.serverNodeId) {
+      const targetClientId = get().addChildNode(clientId);
+      set({
+        graphNodes: get().graphNodes.map((n) =>
+          n.id === targetClientId
+            ? { ...n, data: { ...n.data, prompt: source.data.prompt } }
+            : n,
+        ),
+      });
+      await get().runGenerateNodeInPlace(targetClientId, {
+        sizeOverride,
+        parentServerNodeIdOverride: source.data.serverNodeId,
+        visualRedesign: true,
+      });
+      return;
+    }
     const targetClientId = get().addSiblingNode(clientId);
-    await get().runGenerateNodeInPlace(targetClientId, { sizeOverride });
+    await get().runGenerateNodeInPlace(targetClientId, { sizeOverride, visualRedesign: true });
   },
 
   async runGenerateNode(clientId, sizeOverride) {
@@ -2579,7 +2950,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       nodeGenerationLocks.delete(clientId);
       return null;
     }
-    const { prompt, parentServerNodeId } = node.data;
+    const { parentServerNodeId } = node.data;
+    const prompt = buildNodeRequestPrompt(node.data.prompt, node, {
+      visualRedesign: options.visualRedesign,
+    });
     if (!prompt.trim()) {
       get().showToast(t("toast.promptRequired"), true);
       nodeGenerationLocks.delete(clientId);
@@ -2587,7 +2961,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const nodeRefs = node.data.referenceImages ?? [];
     const s = get();
-    const size = options.sizeOverride ?? s.getResolvedSize();
+    const size = options.sizeOverride ?? resolveNodeGenerationSize(node, s);
     const effectiveParentServerNodeId =
       options.parentServerNodeIdOverride !== undefined
         ? options.parentServerNodeIdOverride
@@ -2612,6 +2986,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         prompt,
         startedAt,
         kind: "node",
+        projectId: s.activeProjectId,
         sessionId: requestSessionId,
         clientNodeId: clientId,
       },
@@ -2654,6 +3029,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         model: s.imageModel,
         reasoningEffort: s.reasoningEffort,
         requestId: flightId,
+        projectId: s.activeProjectId,
         sessionId: requestSessionId,
         clientNodeId: clientId,
         contextMode: "parent-plus-refs",
@@ -2900,6 +3276,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         status: "empty",
         pendingRequestId: null,
         pendingPhase: null,
+        ...inheritNodeSizeData(parent.data),
       },
     };
     const edge: GraphEdge = {
@@ -3292,7 +3669,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return null;
     }
     try {
-      const item = await importLocalImage(file);
+      const item = await importLocalImage(file, get().activeProjectId);
       get().addHistoryItem(item);
       set({ currentImage: item, unseenGeneratedCount: 0 });
       if (item.filename) saveSelectedFilename(item.filename);
@@ -3345,6 +3722,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         prompt,
         startedAt,
         kind: "multimode",
+        projectId: s.activeProjectId,
         composerPrompt,
         composerInsertedPrompts,
       },
@@ -3377,6 +3755,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           format: s.format,
           moderation: s.moderation,
           provider: s.provider,
+          projectId: s.activeProjectId,
           maxImages: requested,
           model: s.imageModel,
           reasoningEffort: s.reasoningEffort,
@@ -3557,7 +3936,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const startedAt = Date.now();
     const nextInFlight: PersistedInFlight[] = [
       ...s.inFlight,
-      { id: flightId, prompt, startedAt, composerPrompt, composerInsertedPrompts },
+      { id: flightId, prompt, startedAt, projectId: s.activeProjectId, composerPrompt, composerInsertedPrompts },
     ];
     saveInFlight(nextInFlight);
     set({
@@ -3574,6 +3953,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         format: s.format,
         moderation: s.moderation,
         provider: s.provider,
+        projectId: s.activeProjectId,
         n: s.count,
         model: s.imageModel,
         reasoningEffort: s.reasoningEffort,
@@ -3692,7 +4072,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrateHistory() {
     void (async () => {
       try {
-        const res = await getHistory({ limit: HISTORY_LIMIT });
+        const projectId = get().activeProjectId;
+        if (!projectId) return;
+        const res = await getHistory({ limit: HISTORY_LIMIT, projectId });
         const history: GenerateItem[] = res.items.map(mapHistoryItem);
         set({ historyNextCursor: res.nextCursor, loadedHistoryRetainLimit: HISTORY_LIMIT });
         if (history.length > 0) {
@@ -3953,7 +4335,7 @@ async function recoverGraphNodesFromHistory(
     requestId?: string | null;
   }> = [];
   try {
-    const res = await getHistory({ sessionId: sid, limit: HISTORY_LIMIT });
+    const res = await getHistory({ sessionId: sid, projectId: get().activeProjectId ?? undefined, limit: HISTORY_LIMIT });
     items = res.items;
   } catch {
     // History fetch failure is non-fatal — leave nodes as they are.
@@ -4169,6 +4551,7 @@ async function addHistory(
   const url = item.filename ? `/generated/${item.filename}` : item.image;
   const withThumb: GenerateItem = {
     ...item,
+    projectId: item.projectId ?? get().activeProjectId,
     thumb,
     url,
     createdAt: item.createdAt || Date.now(),

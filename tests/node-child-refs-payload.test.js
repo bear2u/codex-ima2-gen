@@ -36,4 +36,14 @@ describe("node child reference payload contract", () => {
     assert.match(store, /const dataUrl = await compressReferenceSource\(sourceUrl,\s*"node-reference\.png"\)/);
     assert.doesNotMatch(store, /useCurrentAsReference:[\s\S]*?readAsDataURL\(blob\);[\s\S]*?addedCurrentAsRef/);
   });
+
+  it("uses the current root image as parent context for visual variations", () => {
+    assert.match(store, /function buildNodeRequestPrompt/);
+    assert.match(store, /visualRedesign\?: boolean/);
+    assert.match(store, /원본 스크린샷을 거의 그대로 복사한 것처럼 보이지 않게/);
+    assert.match(store, /!incoming && source\.data\.serverNodeId/);
+    assert.match(store, /const targetClientId = get\(\)\.addChildNode\(clientId\)/);
+    assert.match(store, /parentServerNodeIdOverride: source\.data\.serverNodeId/);
+    assert.match(store, /visualRedesign: true/);
+  });
 });

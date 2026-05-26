@@ -51,6 +51,7 @@ interface GenerateCardSetInput {
   concurrency?: number | string;
   requestId?: string;
   promptMode?: string;
+  projectId?: string | null;
   sessionId?: string | null;
   title?: string;
   roleTemplateId?: string;
@@ -211,6 +212,7 @@ export async function generateCardNewsSet(ctxIn: RouteRuntimeContext, input: Gen
     const sidecar = {
       kind: "card-news-card",
       setId,
+      projectId: input.projectId || null,
       sessionId: input.sessionId || null,
       requestId,
       cardId: card.id || `card_${cardOrder}`,
@@ -243,6 +245,7 @@ export async function generateCardNewsSet(ctxIn: RouteRuntimeContext, input: Gen
   const manifest = {
     kind: "card-news-set",
     setId,
+    projectId: input.projectId || null,
     sessionId: input.sessionId || null,
     requestId: input.requestId || null,
     title: input.title || "Untitled card news",

@@ -41,6 +41,10 @@ export function SizePicker() {
   const customW = useAppStore((s) => s.customW);
   const customH = useAppStore((s) => s.customH);
   const setCustomSize = useAppStore((s) => s.setCustomSize);
+  const selectedNode = useAppStore((s) =>
+    s.uiMode === "node" ? s.graphNodes.find((node) => node.selected) ?? null : null,
+  );
+  const setNodeSizeOverride = useAppStore((s) => s.setNodeSizeOverride);
   const { t } = useI18n();
   const [draftW, setDraftW] = useState(String(customW));
   const [draftH, setDraftH] = useState(String(customH));
@@ -99,6 +103,11 @@ export function SizePicker() {
     }
   }
 
+  function selectNodeSize(mode: "inherit" | "auto" | "fixed", sizeOverride?: string) {
+    if (!selectedNode) return;
+    setNodeSizeOverride(selectedNode.id, mode, sizeOverride ?? null);
+  }
+
   function selectSlot(slot: CustomSizeSlot) {
     setSizePreset("custom");
     setCustomSize(slot.w, slot.h);
@@ -144,6 +153,47 @@ export function SizePicker() {
 
   return (
     <div className="option-group size-picker">
+      {selectedNode ? (
+        <div className="node-size-override">
+          <div className="node-size-override__head">
+            <span>{t("nodeSize.title")}</span>
+            <strong>
+              {selectedNode.data.sizeMode === "fixed" && selectedNode.data.sizeOverride
+                ? selectedNode.data.sizeOverride
+                : t(`nodeSize.mode.${selectedNode.data.sizeMode ?? "inherit"}`)}
+            </strong>
+          </div>
+          <div className="option-row">
+            <button
+              type="button"
+              className={`option-btn${(selectedNode.data.sizeMode ?? "inherit") === "inherit" ? " active" : ""}`}
+              onClick={() => selectNodeSize("inherit")}
+            >
+              {t("nodeSize.global")}
+              <br />
+              <span className="option-sub">{t("nodeSize.globalSub")}</span>
+            </button>
+            <button
+              type="button"
+              className={`option-btn${selectedNode.data.sizeMode === "auto" ? " active" : ""}`}
+              onClick={() => selectNodeSize("auto")}
+            >
+              {t("nodeSize.auto")}
+              <br />
+              <span className="option-sub">{t("nodeSize.autoSub")}</span>
+            </button>
+            <button
+              type="button"
+              className={`option-btn${selectedNode.data.sizeOverride === "1184x2560" ? " active" : ""}`}
+              onClick={() => selectNodeSize("fixed", "1184x2560")}
+            >
+              iPhone
+              <br />
+              <span className="option-sub">1184×2560</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="section-title">{t("size.title")}</div>
       <OptionGroup<SizePreset> title="" items={toItems(SIZE_PRESETS_ROW1)} value={sizePreset} onChange={selectPreset} />
       <OptionGroup<SizePreset> title="" items={toItems(SIZE_PRESETS_ROW2)} value={sizePreset} onChange={selectPreset} />

@@ -36,6 +36,7 @@ import { withSourcePrompt } from "./canvasModeHelpers";
 interface UseCanvasBackgroundCleanupArgs {
   canvasOpen: boolean;
   currentImage: GenerateItem | null;
+  activeProjectId: string | null;
   canvasDisplayImage: GenerateItem | null;
   imageElementRef: RefObject<HTMLImageElement | null>;
   canvasSourceImageRef: RefObject<GenerateItem | null>;
@@ -51,6 +52,7 @@ interface UseCanvasBackgroundCleanupArgs {
 export function useCanvasBackgroundCleanup({
   canvasOpen,
   currentImage,
+  activeProjectId,
   canvasDisplayImage,
   imageElementRef,
   canvasSourceImageRef,
@@ -367,6 +369,7 @@ export function useCanvasBackgroundCleanup({
         sourceFilename: source.canvasSourceFilename ?? source.filename,
         image: result.blob,
         prompt: source.prompt,
+        projectId: activeProjectId,
       });
       const savedItem = withSourcePrompt(response.item, source);
       lastMergedDataUrlRef.current = result.dataUrl;

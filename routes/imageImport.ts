@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createLocalImport } from "../lib/localImportStore.js";
+import { requireProject } from "../lib/projectStore.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext } from "../lib/runtimeContext.js";
@@ -24,6 +25,7 @@ export function registerImageImportRoutes(app: Express, ctxRaw: RouteRuntimeCont
       const item = await createLocalImport(ctx, {
         buffer: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
         originalFilename: decodeHeader(req.headers["x-ima2-original-filename"]),
+        projectId: requireProject(req.headers["x-ima2-project-id"]),
       });
       res.status(201).json({ item });
     } catch (e) {

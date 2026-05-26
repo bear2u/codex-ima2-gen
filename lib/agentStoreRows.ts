@@ -13,6 +13,7 @@ import type {
 
 export type AgentSessionRow = {
   id: string;
+  projectId: string | null;
   title: string;
   codexThreadId: string | null;
   lastTurnId: string | null;
@@ -93,6 +94,7 @@ export function cleanStringArray(values: unknown) {
 export function sessionFromRow(row: AgentSessionRow): AgentSessionSummary {
   return {
     id: row.id,
+    projectId: row.projectId,
     title: row.title,
     codexThreadId: row.codexThreadId,
     lastTurnId: row.lastTurnId,

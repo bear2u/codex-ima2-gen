@@ -82,6 +82,7 @@ export type AgentSessionRunSummary = {
 
 export type AgentSessionSummary = {
   id: string;
+  projectId?: string | null;
   title: string;
   codexThreadId?: string | null;
   lastTurnId?: string | null;

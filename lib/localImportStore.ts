@@ -48,7 +48,7 @@ function safeOriginalName(input: unknown) {
   return basename(trimmed);
 }
 
-export async function createLocalImport(ctx: RuntimeContext, { buffer, originalFilename }: { buffer: Buffer; originalFilename?: string | null }) {
+export async function createLocalImport(ctx: RuntimeContext, { buffer, originalFilename, projectId }: { buffer: Buffer; originalFilename?: string | null; projectId: string }) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     const err: any = new Error("Image body is required");
     err.status = 400;
@@ -71,6 +71,7 @@ export async function createLocalImport(ctx: RuntimeContext, { buffer, originalF
     app: "ima2-gen",
     version: ctx.packageVersion,
     createdAt: Date.now(),
+    projectId,
     kind: "imported",
     canvasVersion: false,
     originalFilename: safeOriginalName(originalFilename),
@@ -90,6 +91,7 @@ export async function createLocalImport(ctx: RuntimeContext, { buffer, originalF
     image: url,
     thumb: url,
     createdAt: meta.createdAt,
+    projectId,
     format,
     kind: "imported",
     canvasVersion: false,

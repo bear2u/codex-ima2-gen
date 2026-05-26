@@ -16,6 +16,7 @@ export type NodeGenerateRequest = {
   webSearchEnabled?: boolean;
   references?: string[];
   requestId?: string;
+  projectId?: string | null;
   sessionId?: string | null;
   clientNodeId?: string | null;
 };

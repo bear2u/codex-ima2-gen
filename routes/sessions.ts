@@ -29,7 +29,8 @@ export function registerSessionRoutes(app: Express, ctxRaw: RouteRuntimeContext)
   const ctx = requireRuntimeContext(ctxRaw);
   app.get("/api/sessions", (_req: Request, res: Response) => {
     try {
-      res.json({ sessions: listSessions() });
+      const projectId = typeof _req.query.projectId === "string" ? _req.query.projectId : null;
+      res.json({ sessions: listSessions(projectId) });
     } catch (e) {
       const err = errInfo(e);
       res.status(500).json({ error: { code: "DB_ERROR", message: err.message } });
@@ -38,12 +39,14 @@ export function registerSessionRoutes(app: Express, ctxRaw: RouteRuntimeContext)
 
   app.post("/api/sessions", (req: Request, res: Response) => {
     try {
-      const body = (req.body ?? {}) as { title?: unknown };
+      const body = (req.body ?? {}) as { title?: unknown; projectId?: unknown };
+      const projectId = typeof body.projectId === "string" ? body.projectId : null;
       const titleRaw = typeof body.title === "string" ? body.title : "Untitled";
       const title = (titleRaw || "Untitled").slice(0, 200);
-      const session = createSession({ title });
+      const session = createSession({ title, projectId });
       logEvent("session", "create", {
         sessionId: session.id,
+        projectId: session.projectId,
         titleChars: session.title.length,
       });
       res.status(201).json({ session });

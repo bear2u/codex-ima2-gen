@@ -20,6 +20,7 @@ import {
   normalizeComposerInsertedPrompts,
   normalizeComposerPrompt,
 } from "../lib/composerSnapshot.js";
+import { requireProject } from "../lib/projectStore.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -109,6 +110,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
         reasoningEffort: rawReasoningEffort,
         webSearchEnabled: rawWebSearchEnabled = true,
       } = req.body;
+      const projectId = requireProject(req.body?.projectId);
       const composerPrompt = normalizeComposerPrompt(req.body?.composerPrompt);
       const composerInsertedPrompts = normalizeComposerInsertedPrompts(
         req.body?.composerInsertedPrompts,
@@ -167,6 +169,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
         prompt,
         meta: {
           kind: "multimode",
+          projectId,
           quality,
           model: imageModel,
           size: effectiveSize,
@@ -182,6 +185,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
 
       logEvent("multimode", "request", {
         requestId,
+        projectId,
         quality,
         model: imageModel,
         size: effectiveSize,
@@ -232,6 +236,7 @@ export function registerMultimodeRoutes(app: Express, ctxRaw: RouteRuntimeContex
           sequenceStatus: status,
           stageLabel: String.fromCharCode(65 + index),
           requestId,
+          projectId,
           prompt,
           userPrompt: prompt,
           revisedPrompt: image.revisedPrompt || null,

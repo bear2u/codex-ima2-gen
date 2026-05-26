@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerProjectRoutes } from "./projects.js";
 import { registerCapabilitiesRoutes } from "./capabilities.js";
 import { registerHealthRoutes } from "./health.js";
 import { registerHistoryRoutes } from "./history.js";
@@ -16,6 +17,7 @@ import { registerAnnotationRoutes } from "./annotations.js";
 import { registerCanvasVersionRoutes } from "./canvasVersions.js";
 import { registerComfyRoutes } from "./comfy.js";
 import { registerImageImportRoutes } from "./imageImport.js";
+import { registerScreenFlowRoutes } from "./screenFlows.js";
 import { registerPromptBuilderRoutes } from "./promptBuilder.js";
 import { registerAgentRoutes } from "./agent.js";
 import { type RouteRuntimeContext, requireRuntimeContext } from "../lib/runtimeContext.js";
@@ -24,12 +26,14 @@ export function configureRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
   const ctx = requireRuntimeContext(ctxRaw);
   registerHealthRoutes(app, ctx);
   registerCapabilitiesRoutes(app, ctx);
+  registerProjectRoutes(app);
   registerStorageRoutes(app, ctx);
   registerMetadataRoutes(app, ctx);
   registerHistoryRoutes(app, ctx);
   registerAnnotationRoutes(app, ctx);
   registerCanvasVersionRoutes(app, ctx);
   registerImageImportRoutes(app, ctx);
+  registerScreenFlowRoutes(app, ctx);
   registerComfyRoutes(app, ctx);
   registerSessionRoutes(app, ctx);
   registerEditRoutes(app, ctx);

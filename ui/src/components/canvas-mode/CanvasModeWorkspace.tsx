@@ -42,6 +42,7 @@ import { useCanvasModeSession } from "./useCanvasModeSession";
 
 export function CanvasModeWorkspace(_props: CanvasModeWorkspaceProps) {
   const currentImage = useAppStore((s) => s.currentImage);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
   const history = useAppStore((s) => s.history);
   const importLocalImageToHistory = useAppStore((s) => s.importLocalImageToHistory);
   const [dropActive, setDropActive] = useState(false);
@@ -115,6 +116,7 @@ export function CanvasModeWorkspace(_props: CanvasModeWorkspaceProps) {
   const backgroundCleanup = useCanvasBackgroundCleanup({
     canvasOpen,
     currentImage,
+    activeProjectId,
     canvasDisplayImage,
     imageElementRef,
     canvasSourceImageRef,
@@ -275,6 +277,7 @@ export function CanvasModeWorkspace(_props: CanvasModeWorkspaceProps) {
   const { handleApplyCanvas, handleCloseCanvas, handleExportCanvas, handleEditWithMask } = useCanvasModeSession({
     imageElementRef,
     currentImage,
+    activeProjectId,
     canvasDisplayImage,
     canvasSourceImageRef,
     lastMergedDataUrlRef,

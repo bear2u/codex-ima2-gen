@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response } from "express";
 import { createCanvasVersion, updateCanvasVersion } from "../lib/canvasVersionStore.js";
+import { requireProject } from "../lib/projectStore.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext } from "../lib/runtimeContext.js";
@@ -33,6 +34,7 @@ export function registerCanvasVersionRoutes(app: Express, ctxRaw: RouteRuntimeCo
       const item = await createCanvasVersion(ctx, {
         sourceFilename,
         prompt: getPrompt(req),
+        projectId: requireProject(req.query.projectId),
         buffer: getRequestBuffer(req),
       });
       res.status(201).json({ item });
@@ -55,6 +57,7 @@ export function registerCanvasVersionRoutes(app: Express, ctxRaw: RouteRuntimeCo
       const item = await updateCanvasVersion(ctx, filename, {
         sourceFilename,
         prompt: getPrompt(req),
+        projectId: requireProject(req.query.projectId),
         buffer: getRequestBuffer(req),
       });
       res.json({ item });

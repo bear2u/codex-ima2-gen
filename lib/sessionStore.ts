@@ -1,22 +1,25 @@
 import { ulid } from "ulid";
 import { getDb } from "./db.js";
+import { getDefaultProjectId, requireProject } from "./projectStore.js";
 
 function now() {
   return Date.now();
 }
 
-export function createSession({ title = "Untitled" } = {}) {
+export function createSession({ title = "Untitled", projectId }: { title?: string; projectId?: string | null } = {}) {
   const db = getDb();
+  const pid = requireProject(projectId);
   const id = "s_" + ulid();
   const t = now();
   db.prepare(
-    "INSERT INTO sessions (id, title, created_at, updated_at, graph_version) VALUES (?, ?, ?, ?, 0)",
-  ).run(id, title, t, t);
-  return { id, title, createdAt: t, updatedAt: t, graphVersion: 0 };
+    "INSERT INTO sessions (id, project_id, title, created_at, updated_at, graph_version) VALUES (?, ?, ?, ?, ?, 0)",
+  ).run(id, pid, title, t, t);
+  return { id, projectId: pid, title, createdAt: t, updatedAt: t, graphVersion: 0 };
 }
 
 type SessionRow = {
   id: string;
+  projectId: string | null;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -26,16 +29,23 @@ type NodeRow = { id: string; x: number; y: number; data: string };
 type EdgeRow = { id: string; source: string; target: string; data: string };
 type StyleSheetRow = { styleSheet: string | null; styleSheetEnabled: number | null };
 
-export function listSessions() {
+export function listSessions(projectId?: string | null) {
   const db = getDb();
-  const rows = db
-    .prepare(
-      "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, graph_version AS graphVersion FROM sessions ORDER BY updated_at DESC",
-    )
-    .all() as SessionRow[];
+  const pid = projectId ? requireProject(projectId) : null;
+  const rows = pid
+    ? db
+      .prepare(
+        "SELECT id, project_id AS projectId, title, created_at AS createdAt, updated_at AS updatedAt, graph_version AS graphVersion FROM sessions WHERE project_id = ? ORDER BY updated_at DESC",
+      )
+      .all(pid) as SessionRow[]
+    : db
+      .prepare(
+        "SELECT id, project_id AS projectId, title, created_at AS createdAt, updated_at AS updatedAt, graph_version AS graphVersion FROM sessions ORDER BY updated_at DESC",
+      )
+      .all() as SessionRow[];
   return rows.map((r) => ({
     ...r,
-    nodeCount: (db
+      nodeCount: (db
       .prepare("SELECT COUNT(*) AS c FROM nodes WHERE session_id = ?")
       .get(r.id) as { c: number } | undefined)?.c ?? 0,
   }));
@@ -45,7 +55,7 @@ export function getSession(id: string) {
   const db = getDb();
   const session = db
     .prepare(
-      "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, graph_version AS graphVersion FROM sessions WHERE id = ?",
+      "SELECT id, project_id AS projectId, title, created_at AS createdAt, updated_at AS updatedAt, graph_version AS graphVersion FROM sessions WHERE id = ?",
     )
     .get(id) as SessionRow | undefined;
   if (!session) return null;
@@ -263,9 +273,10 @@ function safeParse(json: string): Record<string, unknown> {
 }
 
 export function ensureDefaultSession() {
-  const sessions = listSessions();
+  const defaultProjectId = getDefaultProjectId();
+  const sessions = listSessions(defaultProjectId);
   if (sessions.length > 0) return sessions[0];
-  return createSession({ title: "My first graph" });
+  return createSession({ title: "My first graph", projectId: defaultProjectId });
 }
 
 // ── Style sheet (0.10) ───────────────────────────────────────────────────

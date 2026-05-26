@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, stat } from "fs/promises";
 import { dirname, join } from "path";
 import { config } from "../config.js";
 import { readEmbeddedImageMetadataFromFile } from "./imageMetadataStore.js";
+import { getDefaultProjectId } from "./projectStore.js";
 
 import { errInfo } from "./errInfo.js";
 async function listImageFiles(baseDir: string) {
@@ -26,6 +27,7 @@ async function listImageFiles(baseDir: string) {
 
 export async function listHistoryRows(baseDir = config.storage.generatedDir) {
   await mkdir(baseDir, { recursive: true });
+  const defaultProjectId = getDefaultProjectId();
   const imgs = await listImageFiles(baseDir);
   const setRows = await listCardNewsSetRows(baseDir);
   const rows = await Promise.all(imgs.map(async ({ full, rel, name }) => {
@@ -48,6 +50,7 @@ export async function listHistoryRows(baseDir = config.storage.generatedDir) {
       provider: meta?.provider || "oauth",
       usage: meta?.usage || null,
       webSearchCalls: meta?.webSearchCalls || 0,
+      projectId: meta?.projectId || defaultProjectId,
       sessionId: meta?.sessionId || null,
       nodeId: meta?.nodeId || null,
       parentNodeId: meta?.parentNodeId || null,
@@ -109,6 +112,7 @@ async function readImageMetadata(full: string, rel: string) {
 }
 
 async function listCardNewsSetRows(baseDir: string) {
+  const defaultProjectId = getDefaultProjectId();
   const root = join(baseDir, "cardnews");
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   const rows: any[] = [];
@@ -138,6 +142,7 @@ async function listCardNewsSetRows(baseDir: string) {
         provider: "oauth",
         usage: null,
         webSearchCalls: 0,
+        projectId: manifest.projectId || defaultProjectId,
         sessionId: manifest.sessionId || null,
         nodeId: null,
         parentNodeId: null,

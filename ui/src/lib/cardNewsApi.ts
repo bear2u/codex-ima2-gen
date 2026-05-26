@@ -212,6 +212,7 @@ export function generateCardNews(payload: CardNewsPlan & {
   quality: string;
   moderation: "low" | "auto";
   model?: string;
+  projectId?: string | null;
   sessionId?: string | null;
 }): Promise<{ setId: string; cards: CardNewsCard[]; manifest: Record<string, unknown> }> {
   return jsonFetch("/api/cardnews/generate", {
@@ -225,6 +226,7 @@ export function startCardNewsJob(payload: CardNewsPlan & {
   quality: string;
   moderation: "low" | "auto";
   model?: string;
+  projectId?: string | null;
   sessionId?: string | null;
 }): Promise<CardNewsJobSummary> {
   return jsonFetch("/api/cardnews/jobs", {

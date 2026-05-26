@@ -9,7 +9,7 @@ const GENERATION_STRATEGIES = new Set(["auto", "manual"]);
 
 export const DEFAULT_AGENT_GENERATION_SETTINGS: AgentGenerationSettings = {
   provider: "oauth",
-  model: "gpt-5.4-mini",
+  model: "gpt-5.5",
   quality: "medium",
   size: "1024x1024",
   format: "png",
@@ -22,11 +22,13 @@ export const DEFAULT_AGENT_GENERATION_SETTINGS: AgentGenerationSettings = {
   parallelism: 2,
 };
 
+const LEGACY_DEFAULT_AGENT_MODEL = "gpt-5.4-mini";
+
 export function normalizeAgentGenerationSettings(
   value: unknown,
   fallback: AgentGenerationSettings = DEFAULT_AGENT_GENERATION_SETTINGS,
 ): AgentGenerationSettings {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const input = migrateLegacyAgentDefaults(value && typeof value === "object" ? value as Record<string, unknown> : {});
   return {
     provider: cleanEnum(input.provider, PROVIDERS, fallback.provider),
     model: cleanString(input.model, fallback.model),
@@ -41,6 +43,16 @@ export function normalizeAgentGenerationSettings(
     maxAutoVariants: cleanPositiveInt(input.maxAutoVariants, fallback.maxAutoVariants, 1, 8),
     parallelism: cleanPositiveInt(input.parallelism, fallback.parallelism, 1, 8),
   };
+}
+
+function migrateLegacyAgentDefaults(input: Record<string, unknown>): Record<string, unknown> {
+  if (input.model !== LEGACY_DEFAULT_AGENT_MODEL || !matchesDefaultAgentSettings(input)) return input;
+  return { ...input, model: DEFAULT_AGENT_GENERATION_SETTINGS.model };
+}
+
+function matchesDefaultAgentSettings(input: Record<string, unknown>): boolean {
+  const defaults = { ...DEFAULT_AGENT_GENERATION_SETTINGS, model: LEGACY_DEFAULT_AGENT_MODEL };
+  return Object.entries(input).every(([key, value]) => value === defaults[key as keyof AgentGenerationSettings]);
 }
 
 export function mergeAgentGenerationSettings(

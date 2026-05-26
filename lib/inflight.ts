@@ -188,7 +188,7 @@ function reapTerminalJobs() {
 
 export function listJobs(filters: any = {}) {
   purgeStaleJobs();
-  const { kind, sessionId } = filters;
+  const { kind, sessionId, projectId } = filters;
   const clauses: string[] = [];
   const params: unknown[] = [];
   if (kind) {
@@ -203,16 +203,18 @@ export function listJobs(filters: any = {}) {
   return getDb()
     .prepare(`SELECT * FROM inflight${where} ORDER BY started_at ASC`)
     .all(...params)
-    .map((row) => rowToJob(row as InflightRow));
+    .map((row) => rowToJob(row as InflightRow))
+    .filter((job) => !projectId || job.meta?.projectId === projectId);
 }
 
 export function listTerminalJobs(filters: any = {}) {
   reapTerminalJobs();
-  const { kind, sessionId } = filters;
+  const { kind, sessionId, projectId } = filters;
   return Array.from(terminalJobs.values())
     .filter((j) => {
       if (kind && j.kind !== kind) return false;
       if (sessionId && j.meta?.sessionId !== sessionId) return false;
+      if (projectId && j.meta?.projectId !== projectId) return false;
       return true;
     })
     .sort((a, b) => b.finishedAt - a.finishedAt);

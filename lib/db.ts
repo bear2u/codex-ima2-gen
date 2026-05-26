@@ -29,12 +29,21 @@ function migrate(database: Database.Database) {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS projects (
+      id          TEXT PRIMARY KEY,
+      title       TEXT NOT NULL DEFAULT 'Untitled Project',
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       id          TEXT PRIMARY KEY,
+      project_id  TEXT,
       title       TEXT NOT NULL DEFAULT 'Untitled',
       created_at  INTEGER NOT NULL,
       updated_at  INTEGER NOT NULL,
-      graph_version INTEGER NOT NULL DEFAULT 0
+      graph_version INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS nodes (
@@ -79,6 +88,7 @@ function migrate(database: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS agent_sessions (
       id                 TEXT PRIMARY KEY,
+      project_id         TEXT,
       title              TEXT NOT NULL DEFAULT 'New Agent',
       codex_thread_id    TEXT,
       last_turn_id       TEXT,
@@ -89,7 +99,8 @@ function migrate(database: Database.Database) {
 	      style_locks        TEXT NOT NULL DEFAULT '[]',
 	      subject_locks      TEXT NOT NULL DEFAULT '[]',
 	      created_at         INTEGER NOT NULL,
-	      updated_at         INTEGER NOT NULL
+	      updated_at         INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	    );
 
     CREATE TABLE IF NOT EXISTS agent_turns (
@@ -174,10 +185,28 @@ function migrate(database: Database.Database) {
 	      ON agent_queue_items(status, created_at);
 	  `);
 
+  const projectCount = (database
+    .prepare("SELECT COUNT(*) AS c FROM projects")
+    .get() as { c: number } | undefined)?.c ?? 0;
+  if (projectCount === 0) {
+    const t = Date.now();
+    database
+      .prepare("INSERT INTO projects (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)")
+      .run("p_default", "Default Project", t, t);
+  }
+
   const sessionColumns = (database
     .prepare("PRAGMA table_info(sessions)")
     .all() as Array<{ name: string }>)
     .map((row) => row.name);
+  if (!sessionColumns.includes("project_id")) {
+    database.exec("ALTER TABLE sessions ADD COLUMN project_id TEXT");
+    database.prepare("UPDATE sessions SET project_id = ? WHERE project_id IS NULL").run("p_default");
+  }
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_project_updated
+      ON sessions(project_id, updated_at);
+  `);
   if (!sessionColumns.includes("graph_version")) {
     database.exec(
       "ALTER TABLE sessions ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 0",
@@ -196,6 +225,14 @@ function migrate(database: Database.Database) {
 	    .prepare("PRAGMA table_info(agent_sessions)")
 	    .all() as Array<{ name: string }>)
 	    .map((row) => row.name);
+  if (!agentSessionColumns.includes("project_id")) {
+    database.exec("ALTER TABLE agent_sessions ADD COLUMN project_id TEXT");
+    database.prepare("UPDATE agent_sessions SET project_id = ? WHERE project_id IS NULL").run("p_default");
+  }
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_sessions_project_updated
+      ON agent_sessions(project_id, updated_at);
+  `);
 	  if (!agentSessionColumns.includes("generation_settings")) {
 	    database.exec("ALTER TABLE agent_sessions ADD COLUMN generation_settings TEXT NOT NULL DEFAULT '{}'");
 	  }

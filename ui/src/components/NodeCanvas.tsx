@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -37,6 +37,8 @@ function NodeCanvasInner() {
   const nodeSelectionMode = useAppStore((s) => s.nodeSelectionMode);
   const selectNodeGraph = useAppStore((s) => s.selectNodeGraph);
   const sessionLoading = useAppStore((s) => s.sessionLoading);
+  const importAdbScreen = useAppStore((s) => s.importAdbScreen);
+  const [adbBusy, setAdbBusy] = useState(false);
 
   const { screenToFlowPosition } = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -101,9 +103,24 @@ function NodeCanvasInner() {
     [nodeSelectionMode, selectNodeGraph],
   );
 
+  const onImportAdbScreen = useCallback(async () => {
+    if (adbBusy) return;
+    setAdbBusy(true);
+    try {
+      await importAdbScreen();
+    } finally {
+      setAdbBusy(false);
+    }
+  }, [adbBusy, importAdbScreen]);
+
   return (
     <main className="node-canvas" ref={wrapperRef}>
       {sessionLoading && <div className="node-canvas__loading">{t("nodeCanvas.loading")}</div>}
+      <div className="node-canvas__actions">
+        <button type="button" onClick={onImportAdbScreen} disabled={adbBusy}>
+          {adbBusy ? t("nodeCanvas.adbCapturing") : t("nodeCanvas.adbCapture")}
+        </button>
+      </div>
       {nodes.length === 0 ? (
         <button type="button" className="node-canvas__plus" onClick={() => addRootNode()}>
           {t("nodeCanvas.addFirst")}

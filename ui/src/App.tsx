@@ -14,6 +14,7 @@ import { TrashUndoToast } from "./components/TrashUndoToast";
 import { MobileSettingsToggle } from "./components/MobileSettingsToggle";
 import { MobileAppBar } from "./components/MobileAppBar";
 import { MobileComposeSheet } from "./components/MobileComposeSheet";
+import { ProjectSelector } from "./components/ProjectSelector";
 import { useAppStore, flushGraphSaveBeacon } from "./store/useAppStore";
 import { ENABLE_AGENT_MODE, ENABLE_CARD_NEWS_MODE, ENABLE_NODE_MODE } from "./lib/devMode";
 import { useGalleryViewerNavigation } from "./hooks/useGalleryViewerNavigation";
@@ -46,6 +47,7 @@ export default function App() {
   useGalleryViewerNavigation();
   useVisualViewportInset();
   const hydrateHistory = useAppStore((s) => s.hydrateHistory);
+  const loadProjects = useAppStore((s) => s.loadProjects);
   const loadSessions = useAppStore((s) => s.loadSessions);
   const startInFlightPolling = useAppStore((s) => s.startInFlightPolling);
   const reconcileInflight = useAppStore((s) => s.reconcileInflight);
@@ -61,6 +63,7 @@ export default function App() {
   const syncThemeFamilyFromStorage = useAppStore((s) => s.syncThemeFamilyFromStorage);
   const refreshResolvedTheme = useAppStore((s) => s.refreshResolvedTheme);
   const uiModeRaw = useAppStore((s) => s.uiMode);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
   const uiMode =
     uiModeRaw === "agent" && ENABLE_AGENT_MODE ? "agent" :
       uiModeRaw === "card-news" && ENABLE_CARD_NEWS_MODE ? "card-news" :
@@ -79,11 +82,16 @@ export default function App() {
   useBrowserAttentionBadge(unseenGeneratedCount);
 
   useEffect(() => {
-    hydrateHistory();
-    loadSessions();
+    loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
     reconcileInflight();
     startInFlightPolling();
-  }, [hydrateHistory, loadSessions, reconcileInflight, startInFlightPolling]);
+    loadSessions();
+    hydrateHistory();
+  }, [activeProjectId, hydrateHistory, loadSessions, reconcileInflight, startInFlightPolling]);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -127,6 +135,9 @@ export default function App() {
 
   return (
     <>
+      {!activeProjectId ? (
+        <ProjectSelector />
+      ) : (
       <div
         className={`app${workspaceProfile === "prompt-studio" ? " app--prompt-studio" : ""}${settingsOpen ? " app--settings-open" : ""}${
           showHistoryStrip && historyStripLayout === "horizontal" ? " app--history-horizontal" : ""
@@ -159,6 +170,7 @@ export default function App() {
         </Suspense>
         {uiMode === "agent" ? null : uiMode === "card-news" ? null : <RightPanel />}
       </div>
+      )}
       <CustomSizeConfirmModal />
       <TrashUndoToast />
       <Toast />

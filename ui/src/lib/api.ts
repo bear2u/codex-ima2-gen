@@ -50,6 +50,7 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function getInflight(params?: {
   kind?: "classic" | "node" | "multimode";
+  projectId?: string;
   sessionId?: string;
   includeTerminal?: boolean;
 }): Promise<{
@@ -78,6 +79,7 @@ export function getInflight(params?: {
 }> {
   const qs = new URLSearchParams();
   if (params?.kind) qs.set("kind", params.kind);
+  if (params?.projectId) qs.set("projectId", params.projectId);
   if (params?.sessionId) qs.set("sessionId", params.sessionId);
   if (params?.includeTerminal) qs.set("includeTerminal", "1");
   const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
@@ -228,6 +230,7 @@ export type HistoryItem = {
   provider: string;
   usage: Record<string, unknown> | null;
   webSearchCalls: number;
+  projectId?: string | null;
   sessionId?: string | null;
   nodeId?: string | null;
   parentNodeId?: string | null;
@@ -328,6 +331,7 @@ export function getHistory(
     since?: number;
     cursor?: HistoryCursor;
     sessionId?: string;
+    projectId?: string;
     favoritesOnly?: boolean;
   } = {},
 ): Promise<HistoryPage> {
@@ -339,12 +343,13 @@ export function getHistory(
     qs.set("beforeFilename", params.cursor.beforeFilename);
   }
   if (params.sessionId) qs.set("sessionId", params.sessionId);
+  if (params.projectId) qs.set("projectId", params.projectId);
   if (params.favoritesOnly) qs.set("favoritesOnly", "1");
   return jsonFetchWithBrowserId(`/api/history?${qs.toString()}`);
 }
 
 export function getHistoryGrouped(
-  params: { limit?: number; cursor?: HistoryCursor; sessionId?: string | null } = {},
+  params: { limit?: number; cursor?: HistoryCursor; sessionId?: string | null; projectId?: string | null } = {},
 ): Promise<HistoryGroupedPage> {
   const qs = new URLSearchParams();
   qs.set("groupBy", "session");
@@ -354,7 +359,41 @@ export function getHistoryGrouped(
     qs.set("beforeFilename", params.cursor.beforeFilename);
   }
   if (params.sessionId) qs.set("sessionId", params.sessionId);
+  if (params.projectId) qs.set("projectId", params.projectId);
   return jsonFetchWithBrowserId(`/api/history?${qs.toString()}`);
+}
+
+export type ProjectSummary = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  sessionCount: number;
+  imageCount: number;
+};
+
+export function listProjects(): Promise<{ projects: ProjectSummary[] }> {
+  return jsonFetch("/api/projects");
+}
+
+export function createProject(title: string): Promise<{ project: ProjectSummary }> {
+  return jsonFetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export function renameProject(id: string, title: string): Promise<{ ok: boolean }> {
+  return jsonFetch(`/api/projects/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export function deleteProject(id: string): Promise<{ ok: boolean }> {
+  return jsonFetch(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function toggleGalleryFavorite(filename: string): Promise<{ isFavorite: boolean }> {
@@ -467,8 +506,10 @@ export function createCanvasVersion(payload: {
   sourceFilename: string;
   image: Blob;
   prompt?: string | null;
+  projectId?: string | null;
 }): Promise<{ item: GenerateItem }> {
   const qs = new URLSearchParams({ sourceFilename: payload.sourceFilename });
+  if (payload.projectId) qs.set("projectId", payload.projectId);
   return jsonFetch(`/api/canvas-versions?${qs.toString()}`, {
     method: "POST",
     headers: {
@@ -484,10 +525,12 @@ export function updateCanvasVersion(
     image: Blob;
     sourceFilename?: string | null;
     prompt?: string | null;
+    projectId?: string | null;
   },
 ): Promise<{ item: GenerateItem }> {
   const qs = new URLSearchParams();
   if (payload.sourceFilename) qs.set("sourceFilename", payload.sourceFilename);
+  if (payload.projectId) qs.set("projectId", payload.projectId);
   const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
   return jsonFetch(`/api/canvas-versions/${encodeURIComponent(filename)}${suffix}`, {
     method: "PUT",
@@ -501,6 +544,7 @@ export function updateCanvasVersion(
 // ── Sessions (0.06) ──
 export type SessionSummary = {
   id: string;
+  projectId?: string | null;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -522,6 +566,7 @@ export type SessionGraphEdge = {
 };
 export type SessionFull = {
   id: string;
+  projectId?: string | null;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -530,20 +575,43 @@ export type SessionFull = {
   edges: SessionGraphEdge[];
 };
 
+export type ScreenFlowScreenInput = {
+  url: string;
+  title?: string;
+  note?: string;
+  image: string;
+};
+
+export type ScreenFlowImportResponse = {
+  session: SessionFull;
+  imported: Array<{
+    nodeId: string;
+    clientNodeId: string;
+    filename: string;
+    url: string;
+    screenUrl: string;
+    title: string | null;
+  }>;
+  graphVersion: number;
+};
+
 export type GraphSaveMeta = {
   saveId?: string;
   saveReason?: string;
   tabId?: string;
 };
 
-export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
-  return jsonFetch("/api/sessions");
+export function listSessions(projectId?: string | null): Promise<{ sessions: SessionSummary[] }> {
+  const qs = new URLSearchParams();
+  if (projectId) qs.set("projectId", projectId);
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+  return jsonFetch(`/api/sessions${suffix}`);
 }
-export function createSession(title: string): Promise<{ session: SessionSummary }> {
+export function createSession(title: string, projectId?: string | null): Promise<{ session: SessionSummary }> {
   return jsonFetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, projectId }),
   });
 }
 export function getSession(id: string): Promise<{ session: SessionFull }> {
@@ -577,6 +645,36 @@ export function saveSessionGraph(
     method: "PUT",
     headers,
     body: JSON.stringify({ nodes, edges }),
+  });
+}
+
+export function importScreenFlow(payload: {
+  sessionId?: string | null;
+  projectId?: string | null;
+  baseUrl: string;
+  flowName?: string;
+  layout?: "horizontal" | "vertical";
+  screens: ScreenFlowScreenInput[];
+}): Promise<ScreenFlowImportResponse> {
+  return jsonFetch("/api/screen-flows/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function importAdbScreen(payload: {
+  sessionId?: string | null;
+  projectId?: string | null;
+  deviceId?: string | null;
+  title?: string;
+  note?: string;
+  flowName?: string;
+}): Promise<ScreenFlowImportResponse> {
+  return jsonFetch("/api/screen-flows/import-adb", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 }
 
@@ -982,13 +1080,14 @@ export function deletePromptFolder(id: string, strategy?: "moveToRoot" | "delete
   return jsonFetch(`/api/prompts/folders/${encodeURIComponent(id)}${qs}`, { method: "DELETE" });
 }
 
-export async function importLocalImage(file: File): Promise<GenerateItem> {
+export async function importLocalImage(file: File, projectId?: string | null): Promise<GenerateItem> {
   const buffer = await file.arrayBuffer();
   const res = await fetch("/api/history/import-local", {
     method: "POST",
     headers: {
       "Content-Type": file.type || "image/png",
       "X-Ima2-Original-Filename": encodeURIComponent(file.name),
+      ...(projectId ? { "X-Ima2-Project-Id": projectId } : {}),
     },
     body: buffer,
   });
@@ -1038,10 +1137,12 @@ export type PromptBuilderChatResponse = {
 
 export function postPromptBuilderChat(
   body: PromptBuilderChatRequest,
+  init?: Pick<RequestInit, "signal">,
 ): Promise<PromptBuilderChatResponse> {
   return jsonFetch<PromptBuilderChatResponse>("/api/prompt-builder/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: init?.signal,
     body: JSON.stringify(body),
   });
 }

@@ -26,8 +26,10 @@ import { requestAgentQuestionAnswer } from "../lib/agentQuestionResponder.js";
 import { agentAllowedToolPayload, runAgentTurn } from "../lib/agentRuntime.js";
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext } from "../lib/runtimeContext.js";
+import { requireProject } from "../lib/projectStore.js";
 
 type AgentSessionBody = {
+  projectId?: unknown;
   title?: unknown;
   currentImage?: unknown;
   webSearchEnabled?: unknown;
@@ -63,7 +65,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
 
   app.get("/api/agent/sessions", (req: Request, res: Response) => {
     const selectedId = typeof req.query.selectedSessionId === "string" ? req.query.selectedSessionId : null;
-    res.json(getAgentWorkspacePayload(selectedId));
+    const projectId = typeof req.query.projectId === "string" ? requireProject(req.query.projectId) : undefined;
+    res.json(getAgentWorkspacePayload(selectedId, projectId));
   });
 
   app.post("/api/agent/sessions", (req: Request, res: Response) => {
@@ -71,10 +74,11 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       const body = (req.body ?? {}) as AgentSessionBody;
       const session = createAgentSession({
         title: body.title,
+        projectId: requireProject(body.projectId),
         currentImage: normalizeCurrentImage(body.currentImage),
         webSearchEnabled: body.webSearchEnabled !== false,
       });
-      res.status(201).json(getAgentWorkspacePayload(session.id));
+      res.status(201).json(getAgentWorkspacePayload(session.id, session.projectId));
     } catch (error) {
       sendError(res, error);
     }
@@ -83,7 +87,7 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
   app.get("/api/agent/sessions/:sessionId", (req: Request<{ sessionId: string }>, res: Response) => {
     const session = getAgentSession(req.params.sessionId);
     if (!session) return sendError(res, notFound(req.params.sessionId));
-    res.json(getAgentWorkspacePayload(req.params.sessionId));
+    res.json(getAgentWorkspacePayload(req.params.sessionId, session.projectId));
   });
 
   app.patch("/api/agent/sessions/:sessionId", (req: Request<{ sessionId: string }>, res: Response) => {
@@ -99,30 +103,34 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         if (!ok) throw imageNotFound(req.params.sessionId);
       }
       if (Array.isArray(body.styleLocks) || Array.isArray(body.subjectLocks)) setAgentLocks(req.params.sessionId, body);
-      res.json(getAgentWorkspacePayload(req.params.sessionId));
+      const session = getAgentSession(req.params.sessionId);
+      res.json(getAgentWorkspacePayload(req.params.sessionId, session?.projectId));
     } catch (error) {
       sendError(res, error);
     }
   });
 
   app.delete("/api/agent/sessions/:sessionId", (req: Request<{ sessionId: string }>, res: Response) => {
+    const session = getAgentSession(req.params.sessionId);
     const ok = deleteAgentSession(req.params.sessionId);
     if (!ok) return sendError(res, notFound(req.params.sessionId));
-    res.json(getAgentWorkspacePayload(null));
+    res.json(getAgentWorkspacePayload(null, session?.projectId));
   });
 
   app.post("/api/agent/sessions/:sessionId/compact", (req: Request<{ sessionId: string }>, res: Response) => {
     try {
       if (!getAgentSession(req.params.sessionId)) throw notFound(req.params.sessionId);
       compactAgentSession(req.params.sessionId);
-      res.json(getAgentWorkspacePayload(req.params.sessionId));
+      const session = getAgentSession(req.params.sessionId);
+      res.json(getAgentWorkspacePayload(req.params.sessionId, session?.projectId));
     } catch (error) {
       sendError(res, error);
     }
   });
 
   app.get("/api/agent/sessions/:sessionId/manifest", (req: Request<{ sessionId: string }>, res: Response) => {
-    const payload = getAgentWorkspacePayload(req.params.sessionId);
+    const session = getAgentSession(req.params.sessionId);
+    const payload = getAgentWorkspacePayload(req.params.sessionId, session?.projectId);
     if (!payload.selectedSessionId) return sendError(res, notFound(req.params.sessionId));
     res.type("application/xml").send(payload.manifest ?? "");
   });
@@ -141,14 +149,19 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         reasoningEffort: cleanOption(body.reasoningEffort),
         requestId: cleanOption(body.requestId),
       });
-      res.json(getAgentWorkspacePayload(req.params.sessionId));
+      const session = getAgentSession(req.params.sessionId);
+      res.json(getAgentWorkspacePayload(req.params.sessionId, session?.projectId));
     } catch (error) {
       sendError(res, error);
     }
   });
 
-  app.get("/api/agent/queue", (_req: Request, res: Response) => {
-    res.json({ queue: listAgentQueueItems() });
+  app.get("/api/agent/queue", (req: Request, res: Response) => {
+    const projectId = typeof req.query.projectId === "string" ? requireProject(req.query.projectId) : undefined;
+    const queue = projectId
+      ? listAgentQueueItems().filter((item) => getAgentSession(item.sessionId)?.projectId === projectId)
+      : listAgentQueueItems();
+    res.json({ queue });
   });
 
   app.get("/api/agent/sessions/:sessionId/queue", (req: Request<{ sessionId: string }>, res: Response) => {
@@ -170,7 +183,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
           text: formatAgentSlashHelp(),
           status: "complete",
         });
-        return res.status(200).json({ queueItem: null, workspace: getAgentWorkspacePayload(req.params.sessionId) });
+        const session = getAgentSession(req.params.sessionId);
+        return res.status(200).json({ queueItem: null, workspace: getAgentWorkspacePayload(req.params.sessionId, session?.projectId) });
       }
       if (command?.name === "question") {
         const options = normalizeQueueOptions(req.params.sessionId, body);
@@ -189,7 +203,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
           text: answer,
           status: "complete",
         });
-        return res.status(200).json({ queueItem: null, workspace: getAgentWorkspacePayload(req.params.sessionId) });
+        const session = getAgentSession(req.params.sessionId);
+        return res.status(200).json({ queueItem: null, workspace: getAgentWorkspacePayload(req.params.sessionId, session?.projectId) });
       }
       const prompt = command ? cleanPrompt(command.prompt) : rawPrompt;
       const queueItem = createAgentQueueItem({
@@ -199,7 +214,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         command,
       });
       void tickAgentQueueWorker(ctx);
-      res.status(202).json({ queueItem, workspace: getAgentWorkspacePayload(req.params.sessionId) });
+      const session = getAgentSession(req.params.sessionId);
+      res.status(202).json({ queueItem, workspace: getAgentWorkspacePayload(req.params.sessionId, session?.projectId) });
     } catch (error) {
       sendError(res, error);
     }
@@ -210,7 +226,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
     if (!item) return sendError(res, queueItemNotFound(req.params.itemId));
     const ok = cancelAgentQueueItem(item.id);
     if (!ok) return sendError(res, queueActionError("AGENT_QUEUE_CANCEL_FAILED", "Only queued Agent work can be canceled."));
-    res.json(getAgentWorkspacePayload(item.sessionId));
+    const session = getAgentSession(item.sessionId);
+    res.json(getAgentWorkspacePayload(item.sessionId, session?.projectId));
   });
 
   app.post("/api/agent/queue/:itemId/retry", (req: Request<{ itemId: string }>, res: Response) => {
@@ -219,7 +236,8 @@ export function registerAgentRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
     const ok = retryAgentQueueItem(item.id);
     if (!ok) return sendError(res, queueActionError("AGENT_QUEUE_RETRY_FAILED", "Only failed or canceled Agent work can be retried."));
     void tickAgentQueueWorker(ctx);
-    res.json(getAgentWorkspacePayload(item.sessionId));
+    const session = getAgentSession(item.sessionId);
+    res.json(getAgentWorkspacePayload(item.sessionId, session?.projectId));
   });
 }
 

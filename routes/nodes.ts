@@ -23,6 +23,7 @@ import { logEvent, logError } from "../lib/logger.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
+import { requireProject } from "../lib/projectStore.js";
 
 function asUpstream(e: unknown): UpstreamErr {
   return (e && typeof e === "object" ? e : {}) as UpstreamErr;
@@ -82,6 +83,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       prompt?: string;
       parentNodeId?: string;
       requestId?: string;
+      projectId?: string;
       sessionId?: string;
       clientNodeId?: string;
       references?: unknown;
@@ -101,6 +103,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
     const streamResponse = wantsSse(req);
     const parentNodeId = (typeof body.parentNodeId === "string" ? body.parentNodeId : null);
     const requestId = typeof body.requestId === "string" ? body.requestId : (req.id ?? "");
+    let projectId = "";
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : null;
     const clientNodeId = typeof body.clientNodeId === "string" ? body.clientNodeId : null;
     let finishMeta: Record<string, unknown> = {};
@@ -110,23 +113,25 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
     let finishCanceled = false;
     const cancelController = new AbortController();
     const referencePayload = summarizeReferencePayload(body.references);
-    startJob({
-      requestId,
-      kind: "node",
-      prompt: body.prompt,
-      meta: {
-        kind: "node",
-        sessionId,
-        parentNodeId,
-        clientNodeId,
-        refsCount: referencePayload.refsCount,
-        referenceBytes: referencePayload.referenceBytes,
-        referenceB64Chars: referencePayload.referenceB64Chars,
-      },
-    });
-    registerJobAbortController(requestId, cancelController);
 
     try {
+      projectId = requireProject(body.projectId);
+      startJob({
+        requestId,
+        kind: "node",
+        prompt: body.prompt,
+        meta: {
+          kind: "node",
+          projectId,
+          sessionId,
+          parentNodeId,
+          clientNodeId,
+          refsCount: referencePayload.refsCount,
+          referenceBytes: referencePayload.referenceBytes,
+          referenceB64Chars: referencePayload.referenceB64Chars,
+        },
+      });
+      registerJobAbortController(requestId, cancelController);
       const {
         prompt,
         quality: rawQuality = "medium",
@@ -230,6 +235,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         requestId,
         operation,
         sessionId,
+        projectId,
         parentNodeId,
         clientNodeId,
         quality,
@@ -394,6 +400,7 @@ export function registerNodeRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       const meta = {
         nodeId,
         parentNodeId,
+        projectId,
         sessionId,
         clientNodeId,
         prompt,

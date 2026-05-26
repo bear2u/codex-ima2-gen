@@ -52,13 +52,17 @@ export function imageHandleFromCurrent(item: GenerateItem): AgentImageHandle | n
   };
 }
 
-export async function getAgentWorkspace(selectedSessionId?: string | null) {
-  const query = selectedSessionId ? `?selectedSessionId=${encodeURIComponent(selectedSessionId)}` : "";
+export async function getAgentWorkspace(selectedSessionId?: string | null, projectId?: string | null) {
+  const qs = new URLSearchParams();
+  if (selectedSessionId) qs.set("selectedSessionId", selectedSessionId);
+  if (projectId) qs.set("projectId", projectId);
+  const query = qs.size > 0 ? `?${qs.toString()}` : "";
   return jsonFetch<AgentWorkspacePayload>(`/api/agent/sessions${query}`);
 }
 
 export async function createAgentSession(input: {
   title: string;
+  projectId?: string | null;
   currentImage?: GenerateItem | null;
   webSearchEnabled?: boolean;
 }) {
@@ -68,6 +72,7 @@ export async function createAgentSession(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: input.title,
+      projectId: input.projectId,
       currentImage,
       webSearchEnabled: input.webSearchEnabled ?? true,
     }),

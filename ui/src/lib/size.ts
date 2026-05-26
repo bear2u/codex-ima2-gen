@@ -258,11 +258,12 @@ export const SIZE_PRESETS_ROW2 = [
 
 export const SIZE_PRESETS_ROW3 = [
   { value: "1024x1824", label: "1024×1824", sub: "9:16" },
+  { value: "1184x2560", label: "1184×2560", sub: "iPhone" },
   { value: "2048x2048", label: "2048×2048", sub: "2K 1:1" },
-  { value: "2048x1152", label: "2048×1152", sub: "2K 16:9" },
 ] as const;
 
 export const SIZE_PRESETS_ROW4 = [
+  { value: "2048x1152", label: "2048×1152", sub: "2K 16:9" },
   { value: "1152x2048", label: "1152×2048", sub: "2K 9:16" },
   { value: "3840x2160", label: "3840×2160", sub: "4K 16:9" },
   { value: "2160x3840", label: "2160×3840", sub: "4K 9:16" },

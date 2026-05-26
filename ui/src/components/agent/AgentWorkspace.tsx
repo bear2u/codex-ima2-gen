@@ -143,6 +143,7 @@ export function AgentWorkspace() {
   const { t } = useI18n();
   const layoutMode = useAgentWorkspaceLayout();
   const currentGeneratedImage = useAppStore((s) => s.currentImage);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
   const bootstrapped = useRef(false);
   const pendingTurnsRef = useRef(0);
   const [workspace, setWorkspace] = useState<AgentWorkspacePayload>(() => emptyWorkspace());
@@ -178,7 +179,7 @@ export function AgentWorkspace() {
 
   const loadWorkspace = useCallback(async (preferredId?: string | null) => {
     setRuntimeStatus("reconnecting");
-    const loaded = await getAgentWorkspace(preferredId);
+    const loaded = await getAgentWorkspace(preferredId, activeProjectId);
     if (loaded.sessions.length > 0) {
       applyWorkspace(loaded);
       setRuntimeStatus("ready");
@@ -186,17 +187,18 @@ export function AgentWorkspace() {
     }
     const created = await createAgentSession({
       title: t("agent.newSession"),
+      projectId: activeProjectId,
       currentImage: currentGeneratedImage,
     });
     applyWorkspace(created);
     setRuntimeStatus("ready");
-  }, [applyWorkspace, currentGeneratedImage, t]);
+  }, [activeProjectId, applyWorkspace, currentGeneratedImage, t]);
 
   const refreshWorkspace = useCallback(async (preferredId?: string | null) => {
-    const loaded = await getAgentWorkspace(preferredId);
+    const loaded = await getAgentWorkspace(preferredId, activeProjectId);
     applyWorkspace(loaded);
     setRuntimeStatus("ready");
-  }, [applyWorkspace]);
+  }, [activeProjectId, applyWorkspace]);
 
   useEffect(() => {
     if (bootstrapped.current) return;
@@ -246,7 +248,7 @@ export function AgentWorkspace() {
     void loadWorkspace(id).catch(console.error);
   };
   const createSession = () => {
-    void createAgentSession({ title: t("agent.newSession"), currentImage: null })
+    void createAgentSession({ title: t("agent.newSession"), projectId: activeProjectId, currentImage: null })
       .then(applyWorkspace)
       .catch(console.error);
   };

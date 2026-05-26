@@ -1,6 +1,7 @@
 import { ulid } from "ulid";
 import { getDb } from "./db.js";
 import { getAgentQueueProjection } from "./agentQueueStore.js";
+import { requireProject } from "./projectStore.js";
 import {
   DEFAULT_AGENT_GENERATION_SETTINGS,
   mergeAgentGenerationSettings,
@@ -49,11 +50,13 @@ function now() {
   return Date.now();
 }
 
-export function listAgentSessions() {
+export function listAgentSessions(projectId?: string | null) {
   const db = getDb();
+  const projectWhere = projectId ? "WHERE s.project_id = ?" : "";
   const rows = db.prepare(`
     SELECT
       s.id,
+      s.project_id AS projectId,
       s.title,
       s.codex_thread_id AS codexThreadId,
       s.last_turn_id AS lastTurnId,
@@ -65,9 +68,10 @@ export function listAgentSessions() {
       COUNT(i.id) AS imageCount
     FROM agent_sessions s
     LEFT JOIN agent_images i ON i.session_id = s.id
+    ${projectWhere}
     GROUP BY s.id
     ORDER BY s.updated_at DESC
-  `).all() as AgentSessionRow[];
+  `).all(...(projectId ? [requireProject(projectId)] : [])) as AgentSessionRow[];
   return rows.map(sessionFromRow);
 }
 
@@ -77,11 +81,13 @@ export function getAgentSession(id: string) {
 
 export function createAgentSession(input: {
   title?: unknown;
+  projectId?: string | null;
   currentImage?: AgentImageInput | null;
   webSearchEnabled?: boolean;
 } = {}) {
   const db = getDb();
   const id = `as_${ulid()}`;
+  const projectId = requireProject(input.projectId);
   const t = now();
   const generationSettings = {
     ...DEFAULT_AGENT_GENERATION_SETTINGS,
@@ -89,10 +95,11 @@ export function createAgentSession(input: {
   };
   db.prepare(`
     INSERT INTO agent_sessions
-      (id, title, codex_thread_id, web_search_enabled, generation_settings, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (id, project_id, title, codex_thread_id, web_search_enabled, generation_settings, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
+    projectId,
     cleanString(input.title, "New Agent"),
     `codex_${ulid()}`,
     input.webSearchEnabled === false ? 0 : 1,
@@ -276,8 +283,8 @@ export function recordAgentWebFinding(input: {
   return id;
 }
 
-export function getAgentWorkspacePayload(selectedSessionId?: string | null): AgentWorkspacePayload {
-  const sessions = listAgentSessions();
+export function getAgentWorkspacePayload(selectedSessionId?: string | null, projectId?: string | null): AgentWorkspacePayload {
+  const sessions = listAgentSessions(projectId);
   const selected = selectedSessionId && sessions.some((item) => item.id === selectedSessionId)
     ? selectedSessionId
     : sessions[0]?.id ?? null;

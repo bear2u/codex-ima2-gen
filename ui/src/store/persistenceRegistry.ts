@@ -18,6 +18,7 @@ export const PERSISTED_KEYS = [
   "ima2.inFlight",
   "ima2.selectedFilename",
   "ima2.activeSessionId",
+  "ima2.activeProjectId",
   "ima2.graphTabId",
   // gallery (added in #42)
   "ima2.galleryScope",
@@ -44,12 +45,13 @@ export const GENERATION_DEFAULTS_STORAGE_KEY = PERSISTED_KEYS[9];
 export const IN_FLIGHT_STORAGE_KEY = PERSISTED_KEYS[10];
 export const SELECTED_FILENAME_STORAGE_KEY = PERSISTED_KEYS[11];
 export const ACTIVE_SESSION_ID_STORAGE_KEY = PERSISTED_KEYS[12];
-export const GRAPH_TAB_ID_KEY = PERSISTED_KEYS[13];
-export const GALLERY_SCOPE_STORAGE_KEY = PERSISTED_KEYS[14];
-export const GALLERY_DEFAULT_SCOPE_STORAGE_KEY = PERSISTED_KEYS[15];
-export const LOCALE_STORAGE_KEY = PERSISTED_KEYS[16];
-export const WORKSPACE_PROFILE_STORAGE_KEY = PERSISTED_KEYS[17];
-export const WORKSPACE_OVERRIDES_STORAGE_KEY = PERSISTED_KEYS[18];
+export const ACTIVE_PROJECT_ID_STORAGE_KEY = PERSISTED_KEYS[13];
+export const GRAPH_TAB_ID_KEY = PERSISTED_KEYS[14];
+export const GALLERY_SCOPE_STORAGE_KEY = PERSISTED_KEYS[15];
+export const GALLERY_DEFAULT_SCOPE_STORAGE_KEY = PERSISTED_KEYS[16];
+export const LOCALE_STORAGE_KEY = PERSISTED_KEYS[17];
+export const WORKSPACE_PROFILE_STORAGE_KEY = PERSISTED_KEYS[18];
+export const WORKSPACE_OVERRIDES_STORAGE_KEY = PERSISTED_KEYS[19];
 
 export const PERSISTED_REGISTRY: Record<
   PersistedKey,
@@ -72,6 +74,7 @@ export const PERSISTED_REGISTRY: Record<
   "ima2.inFlight": { domain: "runtime", shape: "json:array", resetSafe: true },
   "ima2.selectedFilename": { domain: "runtime", shape: "string", resetSafe: true },
   "ima2.activeSessionId": { domain: "runtime", shape: "string", resetSafe: true },
+  "ima2.activeProjectId": { domain: "runtime", shape: "string", resetSafe: true },
   "ima2.graphTabId": { domain: "runtime", shape: "session:string", resetSafe: true },
   "ima2.galleryScope": { domain: "gallery", shape: "string", resetSafe: true },
   "ima2.galleryDefaultScope": { domain: "gallery", shape: "string", resetSafe: true },

@@ -35,6 +35,7 @@ export type SizePreset =
   | "1024x1360"
   | "1824x1024"
   | "1024x1824"
+  | "1184x2560"
   | "2048x2048"
   | "2048x1152"
   | "1152x2048"
@@ -67,6 +68,7 @@ export type GenerateItem = {
   usage?: { total_tokens?: number } & Record<string, unknown>;
   thumb?: string;
   createdAt?: number;
+  projectId?: string | null;
   sessionId?: string | null;
   nodeId?: string | null;
   clientNodeId?: string | null;
@@ -118,6 +120,7 @@ export type EmbeddedGenerationMetadata = {
   moderation?: string | null;
   model?: string | null;
   provider?: string | null;
+  projectId?: string | null;
   sessionId?: string | null;
   nodeId?: string | null;
   parentNodeId?: string | null;
@@ -176,6 +179,9 @@ export type GenerateRequest = {
   image?: string;
   mask?: string;
   references?: string[];
+  projectId?: string | null;
+  sessionId?: string | null;
+  clientNodeId?: string | null;
   requestId?: string;
   mode?: "auto" | "direct";
   webSearchEnabled?: boolean;

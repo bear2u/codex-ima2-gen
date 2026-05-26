@@ -16,6 +16,7 @@ import { listCardNewsSets, readCardNewsManifest, readCardNewsSetPlan } from "../
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
+import { requireProject } from "../lib/projectStore.js";
 
 interface CardLike {
   id?: string;
@@ -142,7 +143,8 @@ export function registerCardNewsRoutes(app: Express, ctxRaw: RouteRuntimeContext
 
   app.post("/api/cardnews/generate", async (req: Request, res: Response) => {
     try {
-      const result = await generateCardNewsSet(ctx, (req.body ?? {}) as Parameters<typeof generateCardNewsSet>[1]);
+      const body = (req.body ?? {}) as Parameters<typeof generateCardNewsSet>[1];
+      const result = await generateCardNewsSet(ctx, { ...body, projectId: requireProject(body.projectId) });
       res.json(result);
     } catch (err) {
       sendError(res, err);
@@ -152,6 +154,7 @@ export function registerCardNewsRoutes(app: Express, ctxRaw: RouteRuntimeContext
   app.post("/api/cardnews/jobs", (req: Request, res: Response) => {
     try {
       const body = (req.body ?? {}) as Parameters<typeof createCardNewsJob>[0];
+      body.projectId = requireProject(body.projectId);
       const summary = createCardNewsJob(body);
       runCardNewsJob(ctx, summary.jobId, body);
       res.status(202).json(summary);

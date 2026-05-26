@@ -76,13 +76,17 @@ export function registerHealthRoutes(app: Express, ctxRaw: RouteRuntimeContext) 
       typeof req.query.sessionId === "string" && req.query.sessionId.length > 0
         ? req.query.sessionId
         : undefined;
+    const projectId =
+      typeof req.query.projectId === "string" && req.query.projectId.length > 0
+        ? req.query.projectId
+        : undefined;
     const includeTerminal =
       req.query.includeTerminal === "1" || req.query.includeTerminal === "true";
-    const jobs = listJobs({ kind, sessionId });
+    const jobs = listJobs({ kind, sessionId, projectId });
     if (!includeTerminal) return res.json({ jobs });
     return res.json({
       jobs,
-      terminalJobs: listTerminalJobs({ kind, sessionId }),
+      terminalJobs: listTerminalJobs({ kind, sessionId, projectId }),
     });
   });
 

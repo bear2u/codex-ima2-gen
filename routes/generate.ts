@@ -21,6 +21,7 @@ import {
   normalizeComposerInsertedPrompts,
   normalizeComposerPrompt,
 } from "../lib/composerSnapshot.js";
+import { requireProject } from "../lib/projectStore.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -42,6 +43,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
     let finishCanceled = false;
     const cancelController = new AbortController();
     try {
+      const projectId = requireProject(req.body?.projectId);
       const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : null;
       const clientNodeId = typeof req.body?.clientNodeId === "string" ? req.body.clientNodeId : null;
       const {
@@ -95,6 +97,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
         prompt,
         meta: {
           kind: "classic",
+          projectId,
           sessionId,
           parentNodeId: null,
           clientNodeId,
@@ -138,6 +141,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
         refDetectedMimes: [...new Set(referenceDiagnostics.map((ref) => ref.detectedMime).filter(Boolean))].join(","),
         refDeclaredMimes: [...new Set(referenceDiagnostics.map((ref) => ref.declaredMime).filter(Boolean))].join(","),
         sessionId,
+        projectId,
         clientNodeId,
         promptChars: typeof prompt === "string" ? prompt.length : 0,
         promptMode: normalizedPromptMode,
@@ -203,6 +207,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
           const meta = {
             kind: "classic",
             requestId,
+            projectId,
             sessionId,
             clientNodeId,
             prompt,

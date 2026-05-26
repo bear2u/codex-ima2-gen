@@ -15,6 +15,7 @@ import {
 import { logEvent, logError } from "../lib/logger.js";
 import { hasPngAlphaChannel, parsePngInfo } from "../lib/pngInfo.js";
 import { invalidateHistoryIndex } from "../lib/historyIndex.js";
+import { requireProject } from "../lib/projectStore.js";
 
 import { errInfo } from "../lib/errInfo.js";
 import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
@@ -126,6 +127,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       const effectiveSize = providerOptions.size;
       const webSearchEnabled = providerOptions.webSearchEnabled;
       const activeProvider = providerOptions.provider;
+      const projectId = requireProject(req.body?.projectId);
       const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : null;
       const normalizedPromptMode = promptMode === "direct" ? "direct" : "auto";
 
@@ -135,6 +137,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         prompt,
         meta: {
           kind: "edit",
+          projectId,
           sessionId,
           quality,
           model: imageModel,
@@ -173,6 +176,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         size: effectiveSize,
         moderation,
         sessionId,
+        projectId,
         promptChars: typeof prompt === "string" ? prompt.length : 0,
         promptMode: normalizedPromptMode,
         webSearchEnabled,
@@ -219,6 +223,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
         provider: activeProvider,
         kind: "edit",
         requestId,
+        projectId,
         createdAt: Date.now(),
         usage: usage || null,
         webSearchCalls,
